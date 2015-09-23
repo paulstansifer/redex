@@ -48,7 +48,7 @@
          coverage?
          check-redudancy)
 
-(provide shadow rib nothing)
+(provide shadow nothing)
 
 (provide (rename-out [test-match redex-match])
          (rename-out [test-match? redex-match?])
