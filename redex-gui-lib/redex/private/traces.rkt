@@ -5,11 +5,14 @@
 ;; equal hash-table
 
 (require mrlib/graph
+         redex/private/binding-forms
+         redex/private/lang-struct
          redex/private/reduction-semantics
          redex/private/matcher
          "size-snip.rkt"
          racket/gui/base
          racket/class
+         racket/dict
          racket/file
          racket/math
          framework)
@@ -341,9 +344,15 @@
                                 (dot-callback)))]
                            [parent dot-panel]
                            [label "Top to Bottom"]))
-                   
-  (define snip-cache (make-hash))
-  
+
+  (define snip-cache
+    (if (default-language)
+        (let* ([lang (default-language)]
+               [term-equal? (lambda (x y) (α-equal? (compiled-lang-binding-table lang) match-pattern x y))]
+               [term-hash (lambda (x) (α-equal-hash-code (compiled-lang-binding-table lang) match-pattern x))])
+          (make-custom-hash term-equal? term-hash))
+        (make-hash)))
+
   ;; call-on-eventspace-main-thread : (-> any) -> any
   ;; =reduction thread=
   (define (call-on-eventspace-main-thread thnk)
@@ -814,12 +823,12 @@
                     dark-brush-color light-brush-color)
   (let-values ([(snip new?)
                 (let/ec k
-                  (values (hash-ref
+                  (values (dict-ref
                            cache
                            expr
                            (lambda ()
                              (let ([new-snip (make-snip parent-snip expr pred pp code-colors? cw)])
-                               (hash-set! cache expr new-snip)
+                               (dict-set! cache expr new-snip)
                                (k new-snip #t))))
                           #f))])
 
