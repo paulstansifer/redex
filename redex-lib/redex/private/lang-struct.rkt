@@ -1,5 +1,7 @@
 #lang racket/base
 (require racket/promise)
+(require "term-repr.rkt")
+
 (provide (struct-out nt)
          (struct-out rhs)
          (struct-out bind)
@@ -17,6 +19,8 @@
          the-not-hole
          the-hole
          hole?
+         the-hole?
+         the-not-hole?
          (struct-out compiled-lang) 
          compiled-lang-across-ht 
          compiled-lang-across-list-ht
@@ -29,7 +33,7 @@
 ;; single-pattern = sexp
 (define-struct nt (name rhs) #:transparent)
 (define-struct rhs (pattern) #:transparent)
-(define-values (the-hole the-not-hole hole?)
+(define-values (the-hole the-not-hole hole? the-hole? the-not-hole?)
   (let ()
     (struct hole (which)
       #:property prop:equal+hash (list (λ (x y recur) #t)
@@ -50,8 +54,21 @@
       #:inspector #f)
     (define the-hole (hole 'the-hole))
     (define the-not-hole (hole 'the-not-hole))
-    (values the-hole the-not-hole hole?)))
-
+    (values (sexp->term the-hole) 
+            (sexp->term the-not-hole)
+            (lambda (possible-hole) (and (term? possible-hole)
+                                         (hole? (term->sexp possible-hole))))
+            (lambda (possibly-the-hole)
+              (and (term? possibly-the-hole)
+                   (let ([sexp (term->sexp possibly-the-hole)])
+                     (and (hole? sexp)
+                          (eq? 'the-hole (hole-which sexp))))))
+            (lambda (possibly-the-not-hole)
+              (and (term? possibly-the-not-hole)
+                   (let ([sexp (term->sexp possibly-the-not-hole)])
+                     (and (hole? sexp)
+                          (eq? 'the-not-hole (hole-which sexp)))))))))
+ 
 ;; bindings = (make-bindings (listof rib))
 ;; rib = (make-bind sym sexp)
 ;; if a rib has a pair, the first element of the pair should be treated as a prefix on the identifier
@@ -83,7 +100,7 @@
             (lambda (a b c)
               (unless (bindings? a)
                 (error 'make-mtch "expected bindings for first agument, got ~e" a))
-              (make-mtch a b c))
+              (make-mtch a (assume-term b) c))
             mtch?)))
 
 (define-struct bind (name exp) #:transparent)

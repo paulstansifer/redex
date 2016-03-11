@@ -23,7 +23,8 @@ todo:
          racket/contract
          "sexp-diffs.rkt"
          "size-snip.rkt"
-         redex/private/reduction-semantics)
+         redex/private/reduction-semantics
+         redex/private/term-repr)
   
   (provide stepper stepper/seed
            
@@ -54,7 +55,7 @@ todo:
   (define back-label (pick-label "↩" "<-"))
   
   (define (stepper red term [pp default-pretty-printer])
-    (stepper/seed red (list term) pp))
+    (stepper/seed red (list (ensure-term term)) pp))
   
   (define (stepper/seed red seed [pp default-pretty-printer])
     (define term (car seed))
@@ -443,8 +444,8 @@ todo:
   (define (show-diff parent child)
     (let-values ([(to-color1 to-color2) 
                   (find-differences 
-                   (send parent get-term)
-                   (send child get-term)
+                   (term->sexp (send parent get-term))
+                   (term->sexp (send child get-term))
                    (send (send parent get-big-snip) get-char-width)
                    (send (send child get-big-snip) get-char-width))])
       (send (send parent get-big-snip) highlight-diffs to-color1)
@@ -706,7 +707,8 @@ todo:
         (send (get-editor) update-heights))
       (super-new)))
   
-  (define (mk-big-snip sexp node pp init-cw)
+  (define (mk-big-snip t node pp init-cw)
+    (define sexp (term->sexp t))
     (let* ([txt (new text:keymap%)]
            [s (new big-snip% 
                    [pp pp]

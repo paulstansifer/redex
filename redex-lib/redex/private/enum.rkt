@@ -10,7 +10,7 @@
          data/enumerate/lib/unsafe
          data/enumerate/unsafe
          
-         
+         "term-repr.rkt"
          "env.rkt"
          "error.rkt"
          "lang-struct.rkt"
@@ -26,7 +26,7 @@
   [pat-enumerator (-> lang-enum?
                       any/c ;; pattern
                       (or/c #f enum?))]
-  [enum-ith (-> enum? exact-nonnegative-integer? any/c)]
+  [enum-ith (-> enum? exact-nonnegative-integer? term?)]
   [lang-enum? (-> any/c boolean?)]
   [enum? (-> any/c boolean?)]))
 
@@ -43,7 +43,7 @@
 (struct hide-hole (term) #:transparent)
 
 ;; Top level exports
-(define (enum-ith e x) (from-nat e x))
+(define (enum-ith e x) (sexp->term (from-nat e x)))
 
 (define (lang-enumerators lang cc-lang)
   (define (make-lang-table! ht lang)
@@ -131,7 +131,7 @@
      
      ;; not sure this is the right equality function, 
      ;; but it matches the plug-hole function (above)
-     [`hole (single/e the-hole #:equal? eq?)]
+     [`hole (single/e (term->sexp the-hole) #:equal? eq?)]
      
      [`(nt ,id)
       (lang-enum-get-nt-enum l-enum id)]
@@ -279,7 +279,7 @@
 (define (plug-hole ctx term)
   (define (plug ctx)
     (match ctx
-      [(? (curry eq? the-hole)) term]
+      [(? (λ (s) (the-hole? (sexp->term s)))) term]
       [(list ctxs ...) (map plug ctxs)]
       [_ ctx]))
   (define (unhide term)

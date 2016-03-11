@@ -5,6 +5,7 @@
          "private/judgment-form.rkt"
          "private/matcher.rkt"
          "private/lang-struct.rkt"
+         "private/term-repr.rkt"
          "private/term.rkt"
          "private/rg.rkt"
          "private/error.rkt"
@@ -30,6 +31,8 @@
          define-union-language
          plug
          compiled-lang?
+         term->sexp
+         sexp->term
          term
          term-let
          define-metafunction

@@ -107,7 +107,7 @@
                 (sum n_1 n_2 n_3)
                 (equal? (car (judgment-holds
                               (sum n_1 n_2 n_4) n_4))
-                        (term n_3))
+                        (term n_3 #:lang nats))
                 #:attempts 50
                 #:print? #f))
   
@@ -352,7 +352,7 @@
                 (typeof Γ e τ)
                 (equal? (car (judgment-holds
                               (typeof Γ e τ_2) τ_2))
-                        (term τ))
+                        (term τ #:lang STLC))
                 #:attempts 50
                 #:print? #f))
   
@@ -371,7 +371,7 @@
                 (typ-if Γ e τ)
                 (equal? (car (judgment-holds
                               (typ-if Γ e τ_2) τ_2))
-                        (term τ))
+                        (term τ #:lang STLC))
                 #:attempts 50
                 #:print? #f))
   
@@ -426,7 +426,7 @@
                 (filtered e_1 n e_2)
                 (equal? (car (judgment-holds
                               (filtered e_1 n e_3) e_3))
-                        (term e_2))
+                        (term e_2 #:lang l))
                 #:attempts 25
                 #:print? #f))
   

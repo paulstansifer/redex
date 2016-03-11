@@ -3,6 +3,7 @@
 (require "matcher.rkt"
          "lang-struct.rkt"
          "struct.rkt"
+         "term-repr.rkt"
          "term.rkt"
          "fresh.rkt"
          "loc-wrapper.rkt"
@@ -81,16 +82,17 @@
 (define-syntax (term-match stx)
   (term-matcher stx #'term-match/proc))
 
-(define ((term-match/proc form-name lang ps cps rhss) term)
+(define ((term-match/proc form-name lang ps cps rhss) term-or-sexp)
   (append-map
    (λ (cp rhs)
-     (let ([matches (match-pattern cp term)])
+     (let ([matches (match-pattern cp (ensure-term term-or-sexp))])
        (if matches
            (map rhs matches)
            '())))
    cps rhss))
 
-(define ((term-match/single/proc form-name lang ps0 cps rhss) term)
+(define ((term-match/single/proc form-name lang ps0 cps rhss) term-or-sexp)
+  (define term (ensure-term term-or-sexp))
   (let loop ([ps ps0] [cps cps] [rhss rhss])
     (if (null? ps)
         (redex-error form-name 
@@ -154,7 +156,7 @@
          (with-syntax ([rest-lets (nested-lets lang #'bindings bodies name)])
            #`(#,(term-matcher #`(#,name #,lang [lhs rest-lets]) 
                               #'term-match/single/proc) 
-              rhs))]))
+              (ensure-term rhs)))]))
     
     (values redex-let redex-let*)))
 
@@ -259,7 +261,7 @@
                              ;; this list is because we expect one argument
                              ;; judgment forms, but the general API puts the
                              ;; arguments into a list. 
-                             (list v)
+                             (ensure-term (list v))
                              
                              #f
                              (runtime-judgment-form-cache p)
@@ -267,7 +269,7 @@
      (apply
       append
       (for/list ([d-sub (in-list jf-res)])
-        (for/list ([res (in-list (derivation-subs-acc-this-output d-sub))])
+        (for/list ([res (in-list (term->list (derivation-subs-acc-this-output d-sub)))])
           (if tag-with-names?
               (list (derivation-subs-acc-rulename d-sub) res)
               res))))]
@@ -280,7 +282,7 @@
              [(null? procs) acc]
              [else
               (loop (cdr procs)
-                    ((car procs) v acc))]))))
+                    ((car procs) (ensure-term v) acc))]))))
      (if tag-with-names?
          (map cdr proc-results)
          (map caddr proc-results))]))
@@ -1137,9 +1139,9 @@
   (define cpat (compile-pattern lang pat #t))
   (define redex-match-proc
     (if boolean-only?
-        (λ (exp) (match-pattern? cpat exp))
+        (λ (exp) (match-pattern? cpat (ensure-term exp)))
         (λ (exp)
-          (let ([ans (match-pattern cpat exp)])
+          (let ([ans (match-pattern cpat (ensure-term exp))])
             (and ans
                  (map (λ (m) (make-match (sort-bindings 
                                           (filter (λ (x) (and (memq (bind-name x) binders)
@@ -1173,7 +1175,7 @@
 (define (in-domain?/proc mf exp)
   (let ([mp (metafunction-proc mf)])
     ((metafunc-proc-in-dom? mp)
-     exp)))
+     (ensure-term exp))))
 
 (define-for-syntax (lhs-lws clauses)
   (with-syntax ([((lhs-for-lw _ ...) ...) clauses])
@@ -1429,10 +1431,13 @@
                                      (syntax->list #'(lhs-namess/ellipses ...))
                                      (syntax->list (syntax (rhs/wheres ...))))]
                                [(gen-clause ...)
+(begin                                #|(printf "~nGEN CLAUSE: ~a~n" (syntax->datum #'(lhs ...)))
+                                (printf "GEN CLAUSE: ~a~n" (syntax->datum #'(rhs ...)))
+                                (printf "GEN CLAUSE: ~a~n" (syntax->datum #'((stuff ...) ...)))|#
                                 (make-mf-clauses (syntax->list #'(lhs ...))
                                                  (syntax->list #'(rhs ...))
                                                  (syntax->list #'((stuff ...) ...))
-                                                 lang-nts syn-error-name #'name #'lang)])
+                                                 lang-nts syn-error-name #'name #'lang))])
                    (syntax-property
                     (prune-syntax
                      #`(let ([sc `(side-conditions-rewritten ...)]
@@ -1554,6 +1559,7 @@
                         #,lang
                         '#,name))))
         (cons clause-stx clauses))))
+  ;;(printf "MF clauses: ~s~n" (map syntax->datum (reverse rev-clauses)))
   (reverse rev-clauses))
 
 (define (add-mf-dqs clauses)
@@ -1763,7 +1769,7 @@
                                                      (in-list codom-compiled-patterns)])
                                              (match-pattern codom-compiled-pattern 
                                                             (if post-condition?
-                                                                (list exp ans)
+                                                                (list->term (list exp ans))
                                                                 ans)))
                                      (redex-error name
                                                   "codomain test failed for ~s, call was ~s"
@@ -1786,11 +1792,11 @@
                                                                 (eq? not-in-cache (hash-ref cache exp not-in-cache)))
                                                             (display " ")
                                                             (display "c"))
-                                                        (ot name (car args) kws kw-args level))]
+                                                        (ot name (term->sexp (car args)) kws kw-args level))]
                                                      [current-trace-print-results
                                                       (λ (name results level)
                                                         (display " ")
-                                                        (otr name results level))]
+                                                        (otr name (map term->sexp results) level))]
                                                      [print-as-expression #f])
                                         (trace-call name metafunc exp))
                                       (metafunc exp)))])
@@ -2622,6 +2628,9 @@
   (values (apply-reduction-relation red arg) #f))
 
 (define (test-->>/procs name red arg-thnk expected-thnk apply-red cycles-ok? equiv? pred srcinfo)
+  ;; The user can provide `pred` and `equiv?`. In the old system, they would be functions on
+  ;; s-expressions, so for backwards-compatibility we have to convert to s-expressions.
+  ;; This is sad.
   (unless (reduction-relation? red)
     (error name "expected a reduction relation as first argument, got ~e" red))
   (when pred
@@ -2630,13 +2639,13 @@
       (error 'test-->> "expected a procedure that accepted one argument for the #:pred, got ~e" pred)))
   (define-values (arg expected)
     (parameterize ([default-language (reduction-relation-lang red)])
-      (values (arg-thnk) (expected-thnk))))
+      (values (ensure-term (arg-thnk)) (map ensure-term (expected-thnk)))))
   (inc-tests)
   (define visit-already-failed? #f)
   (define (visit t)
     (when pred
       (unless visit-already-failed?
-        (unless (pred t)
+        (unless (pred (term->sexp t)) 
           (set! visit-already-failed? #t)
           (inc-failures)
           (print-failed srcinfo)
@@ -2650,7 +2659,8 @@
        (eprintf "found a cycle in the reduction graph\n")]
       [else
        (unless visit-already-failed?
-         (let* ([⊆ (λ (s1 s2) (andmap (λ (x1) (memf (λ (x) (equiv? x1 x)) s2)) s1))]
+         (let* ([⊆ (λ (s1 s2) (andmap (λ (x1) (memf (λ (x) (equiv? (term->sexp x1) (term->sexp x)))
+                                                    s2)) s1))]
                 [set-equal? (λ (s1 s2) (and (⊆ s1 s2) (⊆ s2 s1)))])
            (unless (set-equal? expected got)
              (inc-failures)
@@ -2679,8 +2689,12 @@
 (define (test-->>∃/proc relation start goal steps srcinfo)
   (let ([result (traverse-reduction-graph 
                  relation
-                 start 
-                 #:goal (if (procedure? goal) goal (λ (x) (equal? goal x)))
+                 (ensure-term start) 
+                 ;; more sadness: we have to convert to a s-expression before passing to `goal`,
+                 ;; if it's a user-provided function
+                 #:goal (if (procedure? goal) 
+                            (λ (x) (goal (term->sexp x)))
+                            (λ (x) (equal? (ensure-term goal) x)))
                  #:steps steps)])
     (inc-tests)
     (when (search-failure? result)
@@ -2710,7 +2724,8 @@
 ;; I'm not sure if these two functions should be here, but they need to have
 ;; access to `match-pattern` to work.
 (define (alpha-equivalent? lang lhs rhs)
-  (α-equal? (compiled-lang-binding-table lang) match-pattern lhs rhs))
+  (α-equal? (compiled-lang-binding-table lang) match-pattern 
+            (ensure-term lhs) (ensure-term rhs)))
 
 ;; special empty language that signals to `build-metafunction` that this metafunction 
 ;; is language-agnostic
@@ -2742,6 +2757,7 @@
 
 (define (test-equal/proc v1 v2 srcinfo equal?)
   (inc-tests)
+  ;; it's probably most backwards-compatible to do nothing here
   (unless (equal? v1 v2)
     (inc-failures)
     (print-failed srcinfo)

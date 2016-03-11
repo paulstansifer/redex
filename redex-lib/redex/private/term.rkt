@@ -1,6 +1,7 @@
 #lang racket/base
 
-(require (for-syntax racket/base 
+(require (for-syntax racket/base
+                     "term-repr.rkt"
                      "term-fn.rkt"
                      syntax/boundmap
                      syntax/parse
@@ -9,6 +10,7 @@
                      (only-in racket/list flatten)
                      "keyword-macros.rkt"
                      "matcher.rkt")
+         "term-repr.rkt"
          (only-in "fresh.rkt" variable-not-in)
          syntax/datum
          "error.rkt"
@@ -56,9 +58,12 @@
                   (loop (term-id-prev-id slv))
                   (values (language-id-nts ls 'term)
                           (language-id-nt-identifiers ls 'term)))))
+          ;; if #:lang is provided, produce the proper term representation
           (quasisyntax/loc stx (term/nts t #,lang-nts #,lang-nt-ids))]
          [else
-          (syntax/loc stx (term/nts t #f #f))]))]))
+          ;; if #:lang isn't provided, produce an S-expression, because it's likely
+          ;; that the user is about to treat it like one
+          (syntax/loc stx (term->sexp (term/nts t #f #f)))]))]))
 
 (define-syntax (term/nts stx)
   (syntax-case stx ()
@@ -94,7 +99,7 @@
 (define-syntax (mf-map stx)
   (syntax-case stx ()
     [(_ inner-apps)
-     #'(λ (l) (map inner-apps l))]))
+     #'(λ (l) (map inner-apps (term->list l)))]))
 
 (define-for-syntax currently-expanding-term-fn (make-parameter #f))
 
@@ -107,7 +112,7 @@
 ;; t-bind-pat    := id | (ref id) | `(,t-b-seq ...)
 ;; t-b-seq       := t-bind-pat | ellipsis
 ;; mf-apps       := `(mf-map ,mf-apps) | `(mf-apply ,metafunction-id) | `(jf-apply ,judgment-form-id)
-;; term-datum    := `(quasidatum ,d)
+;; term-datum    := `(tree->term (quasidatum ,d))
 ;; d             := literal | pattern-variable | `(,d-seq ...) | ;; other (holes, undatum)
 ;; d-seq         := d | ellipsis
 
@@ -143,7 +148,7 @@
               (if (zero? args-depth)
                   (begin
                     (set! outer-bindings 
-                          (cons (syntax [res (func (quasidatum args))])
+                          (cons (syntax [res (func (tree->term (quasidatum args)))])
                                 outer-bindings))
                     (values result-id (min depth max-depth)))
                   (with-syntax ([dots (datum->syntax #'here '... arg-stx)])
@@ -227,7 +232,8 @@
       [(unquote-splicing . x)
        (raise-syntax-error 'term "malformed unquote splicing" arg-stx stx)]
       [(in-hole id body)
-       (rewrite-application (syntax (λ (x) (apply plug x))) (syntax/loc stx (id body)) depth stx)]
+       (rewrite-application (syntax (λ (id-and-body) (apply plug (term->list id-and-body))))
+                            (syntax/loc stx (id body)) depth stx)]
       [(in-hole . x)
        (raise-syntax-error 'term "malformed in-hole" arg-stx stx)]
       [hole (values (syntax (undatum the-hole)) 0)]
@@ -286,7 +292,8 @@
           "ellipsis cannot have an underscore"
           arg-stx stx))
        (when lang-nts
-         (unless (memq before-underscore (append pattern-symbols lang-nts))
+         (unless (or (memq before-underscore (append pattern-symbols lang-nts))
+                     (equal? before-underscore '...))
            (raise-syntax-error
             'term 
             "before underscore must be either a non-terminal or a built-in pattern"
@@ -302,7 +309,7 @@
   (values
    (with-syntax ([rewritten (rewrite arg-stx)])
      (with-syntax ([(outer-bs ...) (reverse outer-bindings)]
-                   [qd (let ([orig #'(quasidatum rewritten)])
+                   [qd (let ([orig #'(tree->term (quasidatum rewritten))])
                          (datum->syntax orig
                                         (syntax-e orig)
                                         #f
@@ -351,7 +358,7 @@
 
 (define-for-syntax (term-datum->pat t-d names)
   (syntax-case t-d ()
-    [(quasidatum d)
+    [(tree->term (quasidatum d))
      (d->pat #'d names)]))
 
 (define-for-syntax (d->pat d names)

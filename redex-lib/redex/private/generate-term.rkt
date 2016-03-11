@@ -6,6 +6,7 @@
          "reduction-semantics.rkt"
          "lang-struct.rkt"
          "struct.rkt"
+         "term-repr.rkt"
          "term.rkt"
          "matcher.rkt"
          "judgment-form.rkt"
@@ -20,6 +21,7 @@
                      syntax/stx
                      setup/path-to-relative
                      "rewrite-side-conditions.rkt"
+                     "term-repr.rkt"
                      "term-fn.rkt"
                      "keyword-macros.rkt")
          math/base
@@ -448,7 +450,10 @@
        #t]
       [else
        (define attempt (add1 (- attempts remaining)))
-       (define-values (raw-term bindings) (generator ((attempt->size) attempt) attempt retries))
+       (define-values (raw-sexp-term sexp-bindings) 
+         (generator ((attempt->size) attempt) attempt retries))
+       ;; some generators output terms, others output sexpes
+       (define raw-term (ensure-term raw-sexp-term))
        (cond
          [(gen-fail? raw-term)
           (loop (sub1 remaining))]
@@ -467,7 +472,8 @@
                       exn
                       term))))))
           (define term (with-handlers ([exn:fail? (handler "fixing" raw-term)])
-                         (if term-fix (term-fix raw-term) raw-term)))
+                         ;; sadly, we have to assume that `term-fix` works on sexpes
+                         (if term-fix (sexp->term (term-fix (term->sexp raw-term))) raw-term)))
           (cond
             [(skip-term? term) (loop (- remaining 1))]
             [(cond
@@ -485,6 +491,11 @@
                        [(term-prop pred) (pred term)]
                        [(bind-prop pred) (pred bindings)]))])]
                [else
+                ;; if necessary, use the proper representation for terms in the bindings
+                (define bindings (make-bindings 
+                                  (map (λ (rib) (make-bind (bind-name rib)
+                                                           (ensure-term (bind-exp rib))))
+                                       (bindings-table sexp-bindings))))
                 (with-handlers ([exn:fail? (handler "checking" term)])
                   (match (cons property term-fix)
                     [(cons (term-prop pred) _) (pred term)]
@@ -568,7 +579,9 @@
              (check-lhs-pats 
               (metafunc-proc-lang #,m)
               #,m
-              (term-prop #,(apply-contract #'(-> (listof any/c) any) #'property #f (syntax-e #'form)))
+              (term-prop #,(apply-contract #'(-> term? #;(listof any/c) any) 
+                                           #'(λ (t) (property (term->sexp t)))
+                                           #f (syntax-e #'form)))
               att
               ret
               'check-metafunction
@@ -609,7 +622,9 @@
              (check-lhs-pats
               (reduction-relation-lang rel)
               rel
-              (term-prop #,(apply-contract #'(-> any/c any) #'property #f (syntax-e #'form)))
+              (term-prop #,(apply-contract #'(-> any/c any) 
+                                           #'(λ (t) (property (term->sexp t)))
+                                           #f (syntax-e #'form)))
               att
               ret
               'check-reduction-relation

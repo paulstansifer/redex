@@ -190,7 +190,7 @@
 (define (typecheck G e)
   (match (judgment-holds (typeof ,G ,e τ) τ)
     [(list) #f]
-    [(list t) t]
+    [(list t) (term->sexp t)]
     [_ (error 'typecheck
               "multiple typing derivations for term ~a in environment ~a"
               e G)]))

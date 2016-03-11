@@ -11,6 +11,7 @@
             "term.rkt"
             "matcher.rkt"))
   
+
   (provide rewrite-side-conditions/check-errs
            break-out-underscore
            extract-names
@@ -20,6 +21,7 @@
            language-id-nts
            bind-pattern-names
            check-hole-sanity)
+
   
   (provide (struct-out id/depth))
   
@@ -160,7 +162,7 @@
                          (side-condition
                           pre-term
                           ,(lambda (bindings)
-                             (term-let
+                             (term-let 
                               ([name/ellipses (lookup-binding bindings 'name)] ...)
                               exp))
                           ; For use in error messages.

@@ -46,6 +46,7 @@ See match-a-pattern.rkt for more details
          data/union-find
          racket/performance-hint
          (for-syntax racket/base)
+         "term-repr.rkt"
          "build-nt-property.rkt"
          "underscore-allowed.rkt"
          "match-a-pattern.rkt"
@@ -974,27 +975,30 @@ See match-a-pattern.rkt for more details
        (values
         (cond
           [(not (or any-has-hole? any-has-hide-hole? (not (null? names))))
-           (λ (exp)
+           (λ (exp-term)
+             (define exp-bare (term->list exp-term))
              (cond
-               [(list? exp) (match-list/boolean rewritten exp)]
+               [(list? exp-bare) (match-list/boolean rewritten exp-bare)]
                [else #f]))]
           [(= 0 repeats)
-           (λ (exp hole-info nesting-depth)
+           (λ (exp-term hole-info nesting-depth)
+             (define exp-bare (term->list exp-term))
              (cond
-               [(list? exp)
+               [(list? exp-bare)
                 ;; shortcircuit: if the list isn't the right length, give up immediately.
-                (if (= (length exp) non-repeats)
-                    (match-list/no-repeats rewritten/coerced exp hole-info nesting-depth)
+                (if (= (length exp-bare) non-repeats)
+                    (match-list/no-repeats rewritten/coerced exp-bare hole-info nesting-depth)
                     #f)]
                [else #f]))]
           [else
-           (λ (exp hole-info nesting-depth)
+           (λ (exp-term hole-info nesting-depth)
+             (define exp-bare (term->list exp-term))
              (cond
-               [(list? exp)
+               [(list? exp-bare)
                 ;; shortcircuit: if the list doesn't have the right number of
                 ;; fixed parts, give up immediately
-                (if (>= (length exp) non-repeats)
-                    (match-list rewritten/coerced exp hole-info nesting-depth)
+                (if (>= (length exp-bare) non-repeats)
+                    (match-list rewritten/coerced exp-bare hole-info nesting-depth)
                     #f)]
                [else #f]))])
         any-has-hole?
@@ -1019,7 +1023,7 @@ See match-a-pattern.rkt for more details
   ;; simple-match : (any -> bool) -> (values <compiled-pattern> boolean boolean)
   ;; does a match based on a predicate
   (define (simple-match pred)
-    (values (lambda (exp) (pred exp))
+    (values (lambda (exp) (pred (term->sexp exp)))
             #f
             #f
             '()))
@@ -1034,7 +1038,7 @@ See match-a-pattern.rkt for more details
            "not a unary proc: ~s" 
            boolean-based-matcher))
   (define (match-boolean-to-record-converter exp hole-info nesting-depth)
-    (and (boolean-based-matcher exp)
+    (and (boolean-based-matcher (assume-term exp))
          (list (make-mtch empty-bindings
                           (build-flat-context exp)
                           none))))
@@ -1436,36 +1440,36 @@ See match-a-pattern.rkt for more details
                     (loop (cdr mtches))))])))))
 
 ;; match-list/boolean : (listof (union repeat (any -> boolean)))
-;;                      sexp hole-info -> boolean
-(define (match-list/boolean patterns exp)
+;;                      (listof term) hole-info -> boolean
+(define (match-list/boolean patterns term-list)
   (define has-repeats? (ormap repeat? patterns))
   (cond
-    [(not (list? exp)) #f]
+    [(not (list? term-list)) #f]
     [(and (not has-repeats?)
-          (not (= (length patterns) (length exp))))
+          (not (= (length patterns) (length term-list))))
      #f]
     [else
-     (let loop ([exp exp]
+     (let loop ([term-list term-list]
                 [patterns patterns])
        (cond
-         [(null? exp)
+         [(null? term-list)
           (let loop ([patterns patterns])
             (or (null? patterns)
                 (and (repeat? (car patterns))
                      (loop (cdr patterns)))))]
          [(null? patterns) #f]
          [(repeat? (car patterns)) 
-          (or (loop exp (cdr patterns))
-              (and ((repeat-pat (car patterns)) (car exp))
-                   (loop (cdr exp) patterns)))]
+          (or (loop term-list (cdr patterns))
+              (and ((repeat-pat (car patterns)) (car term-list))
+                   (loop (cdr term-list) patterns)))]
          [else
-          (and ((car patterns) (car exp))
-               (loop (cdr exp) (cdr patterns)))]))]))
+          (and ((car patterns) (car term-list))
+               (loop (cdr term-list) (cdr patterns)))]))]))
 
-;; match-list : (listof (union repeat compiled-pattern)) sexp hole-info -> (union #f (listof bindings))
-(define (match-list patterns exp hole-info nesting-depth)
+;; match-list : (listof (union repeat compiled-pattern)) (listof term) hole-info -> (union #f (listof bindings))
+(define (match-list patterns term-list hole-info nesting-depth)
   (let (;; raw-match : (listof (listof (listof mtch)))
-        [raw-match (match-list/raw patterns exp hole-info nesting-depth)])
+        [raw-match (match-list/raw patterns term-list hole-info nesting-depth)])
     
     (and (not (null? raw-match))
          (let loop ([raw-match raw-match])
@@ -1475,7 +1479,7 @@ See match-a-pattern.rkt for more details
                            (loop (cdr raw-match)))])))))
 
 ;; match-list/raw : (listof (union repeat compiled-pattern)) 
-;;                  sexp
+;;                  (listof term)
 ;;                  hole-info
 ;;               -> (listof (listof (listof mtch)))
 ;; the result is the raw accumulation of the matches for each subpattern, as follows:
@@ -1485,10 +1489,10 @@ See match-a-pattern.rkt for more details
 ;;    \-------------------------/    one element for different expansions of the ellipses
 ;; the failures to match are just removed from the outer list before this function finishes
 ;; via the `fail' argument to `loop'.
-(define (match-list/raw patterns exp hole-info nesting-depth)
+(define (match-list/raw patterns term-list hole-info nesting-depth)
   (let/ec k
     (let loop ([patterns patterns]
-               [exp exp]
+               [term-list term-list]
                ;; fail : -> alpha
                ;; causes one possible expansion of ellipses to fail
                ;; initially there is only one possible expansion, so
@@ -1499,10 +1503,10 @@ See match-a-pattern.rkt for more details
          (let ([fst-pat (car patterns)])
            (cond
              [(repeat? fst-pat)
-              (if (or (null? exp) (pair? exp))
+              (if (or (null? term-list) (pair? term-list))
                   (let ([r-pat (repeat-pat fst-pat)]
                         [r-mt (make-mtch (make-bindings (repeat-empty-bindings fst-pat))
-                                         (build-flat-context '())
+                                         (build-flat-context empty-term)
                                          none)])
                     (apply 
                      append
@@ -1515,15 +1519,15 @@ See match-a-pattern.rkt for more details
                                                                 0
                                                                 nesting-depth)
                                             pat-ele))
-                                    (loop (cdr patterns) exp mt-fail))))
-                           (let r-loop ([exp exp]
+                                    (loop (cdr patterns) term-list mt-fail))))
+                           (let r-loop ([term-list term-list]
                                         ;; past-matches is in reverse order
                                         ;; it gets reversed before put into final list
                                         [past-matches (list r-mt)]
                                         [index 1])
                              (cond
-                               [(pair? exp)
-                                (let* ([fst (car exp)]
+                               [(pair? term-list)
+                                (let* ([fst (car term-list)]
                                        [m (r-pat fst hole-info (+ nesting-depth 1))])
                                   (if m
                                       (let* ([combined-matches (collapse-single-multiples m past-matches)]
@@ -1538,9 +1542,9 @@ See match-a-pattern.rkt for more details
                                          (let/ec fail-k
                                            (map (lambda (x) (cons reversed x))
                                                 (loop (cdr patterns) 
-                                                      (cdr exp)
+                                                      (cdr term-list)
                                                       (lambda () (fail-k null)))))
-                                         (r-loop (cdr exp)
+                                         (r-loop (cdr term-list)
                                                  combined-matches
                                                  (+ index 1))))
                                       (list null)))]
@@ -1549,8 +1553,8 @@ See match-a-pattern.rkt for more details
                   (fail))]
              [else
               (cond
-                [(pair? exp)
-                 (let* ([fst-exp (car exp)]
+                [(pair? term-list)
+                 (let* ([fst-exp (car term-list)]
                         [match (fst-pat fst-exp hole-info nesting-depth)])
                    (if match
                        (let ([exp-match (map (λ (mtch) (make-mtch (mtch-bindings mtch)
@@ -1558,36 +1562,36 @@ See match-a-pattern.rkt for more details
                                                                   (mtch-hole mtch)))
                                              match)])
                          (map (lambda (x) (cons exp-match x))
-                              (loop (cdr patterns) (cdr exp) fail)))
+                              (loop (cdr patterns) (cdr term-list) fail)))
                        (fail)))]
                 [else
                  (fail)])]))]
         [else
-         (if (null? exp)
+         (if (null? term-list)
              (list null)
              (fail))]))))
 
-(define null-match (list (make-mtch (make-bindings '()) '() none)))
+(define null-match (list (make-mtch (make-bindings '()) empty-term none)))
 
-(define (match-list/no-repeats patterns exp hole-info nesting-depth)
+(define (match-list/no-repeats patterns term-list hole-info nesting-depth)
   
-  (define (match-list/raw/no-repeats/no-ambiguity patterns exp hole-info)
+  (define (match-list/raw/no-repeats/no-ambiguity patterns term-list hole-info)
     (let/ec k
       (define-values (bindings lst hole)
         (let loop ([patterns patterns]
-                   [exp exp])
+                   [term-list term-list])
           (cond
             [(pair? patterns)
              (let ([fst-pat (car patterns)])
                (cond
-                 [(pair? exp)
-                  (let* ([fst-exp (car exp)]
+                 [(pair? term-list)
+                  (let* ([fst-exp (car term-list)]
                          [fst-mtchs (fst-pat fst-exp hole-info nesting-depth)])
                     (cond
                       [(not fst-mtchs) (k #f)]
                       [(null? (cdr fst-mtchs))
                        (define mtch1 (car fst-mtchs))
-                       (define-values (bindings lst hole) (loop (cdr patterns) (cdr exp)))
+                       (define-values (bindings lst hole) (loop (cdr patterns) (cdr term-list)))
                        (define new-bindings (bindings-table (mtch-bindings mtch1)))
                        (values (append new-bindings bindings)
                                (build-cons-context (mtch-context mtch1) lst)
@@ -1596,25 +1600,25 @@ See match-a-pattern.rkt for more details
                        (error 'ack)]))]
                  [else (k #f)]))]
             [else
-             (if (null? exp)
-                 (values '() '() none)
+             (if (null? term-list)
+                 (values '() empty-term none)
                  (k #f))])))
       (list (make-mtch (make-bindings bindings) lst hole))))
   
-  (define (match-list/raw/no-repeats patterns exp hole-info)
+  (define (match-list/raw/no-repeats patterns term-list hole-info)
     (let/ec k
       (let loop ([patterns patterns]
-                 [exp exp])
+                 [term-list term-list])
         (cond
           [(pair? patterns)
            (let ([fst-pat (car patterns)])
              (cond
-               [(pair? exp)
-                (let* ([fst-exp (car exp)]
+               [(pair? term-list)
+                (let* ([fst-exp (car term-list)]
                        [fst-mtchs (fst-pat fst-exp hole-info nesting-depth)])
                   (cond
                     [fst-mtchs
-                     (define rst-mtchs (loop (cdr patterns) (cdr exp)))
+                     (define rst-mtchs (loop (cdr patterns) (cdr term-list)))
                      (cond
                        [rst-mtchs
                         (combine-pair/no-repeat fst-mtchs rst-mtchs)]
@@ -1623,7 +1627,7 @@ See match-a-pattern.rkt for more details
                     [else (k #f)]))]
                [else (k #f)]))]
           [else
-           (if (null? exp)
+           (if (null? term-list)
                null-match
                (k #f))]))))
   
@@ -1645,8 +1649,8 @@ See match-a-pattern.rkt for more details
        fst)
       mtchs))
   
-  ;(match-list/raw/no-repeats/no-ambiguity patterns exp hole-info)
-  (match-list/raw/no-repeats patterns exp hole-info)
+  ;(match-list/raw/no-repeats/no-ambiguity patterns term-list hole-info)
+  (match-list/raw/no-repeats patterns term-list hole-info)
   )
 
 ;; add-ellipses-index : (listof mtch) (or/c sym #f) (or/c sym #f) number -> (listof mtch)
@@ -1729,7 +1733,7 @@ See match-a-pattern.rkt for more details
 (define (match-nt list-rhs non-list-rhs nt term hole-info lang-α-equal?)
   (if hole-info
       
-      (let loop ([rhss (if (or (null? term) (pair? term))
+      (let loop ([rhss (if (or (term-null? term) (term-pair? term))
                            list-rhs
                            non-list-rhs)]
                  [ans '()])
@@ -1759,7 +1763,7 @@ See match-a-pattern.rkt for more details
       
       ;; if we're not doing a decomposition, we just need
       ;; to find the first match, not all of the matches
-      (let loop ([rhss (if (or (null? term) (pair? term))
+      (let loop ([rhss (if (or (term-null? term) (term-pair? term))
                            list-rhs
                            non-list-rhs)])
         (cond
@@ -1771,7 +1775,7 @@ See match-a-pattern.rkt for more details
 (define check-redundancy (make-parameter #f))
 
 (define (match-nt/boolean list-rhs non-list-rhs nt term lang-α-equal?)
-  (let loop ([rhss (if (or (null? term) (pair? term))
+  (let loop ([rhss (if (or (term-null? term) (term-pair? term))
                        list-rhs
                        non-list-rhs)])
     (cond
@@ -1924,7 +1928,7 @@ See match-a-pattern.rkt for more details
 
 ;; this 'inlines' build-flat-context so that the definition can remain here, near where it is used.
 (define combine-matches-base-case (list (make-mtch empty-bindings
-						   '() #;(build-flat-context '()) 
+						   empty-term #;(build-flat-context '()) 
 						   none)))
 
 ;; combine-pair : (listof mtch) (listof mtch) -> (listof mtch)
@@ -1975,33 +1979,33 @@ See match-a-pattern.rkt for more details
 (define (hole->not-hole exp)
   (let loop ([exp exp])
     (cond
-      [(pair? exp) 
-       (define old-car (car exp))
+      [(term-pair? exp) 
+       (define old-car (term-car exp))
        (define new-car (loop old-car))
        (cond
          [(eq? new-car old-car)
-          (define old-cdr (cdr exp))
+          (define old-cdr (term-cdr exp))
           (define new-cdr (loop old-cdr))
           (if (eq? new-cdr old-cdr)
               exp
-              (cons new-car new-cdr))]
-         [else (cons new-car (cdr exp))])]
-      [(eq? exp the-hole)
+              (term-cons new-car new-cdr))]
+         [else (term-cons new-car (term-cdr exp))])]
+      [(the-hole? exp)
        the-not-hole]
       [else exp])))
 
 (define (build-flat-context exp) exp)
-(define (build-cons-context e1 e2) (cons e1 e2))
-(define (build-append-context e1 e2) (append e1 e2))
-(define (build-list-context x) (list x))
-(define (reverse-context x) (reverse x))
+(define (build-cons-context e1 e2) (term-cons e1 e2))
+(define (build-append-context e1 e2) (term-lift append e1 e2))
+(define (build-list-context x) (term-lift list x))
+(define (reverse-context x) (term-lift reverse x))
 (define (build-nested-context c1 c2) 
   (plug c1 c2))
 
-(define (plug exp hole-stuff)
-  (let loop ([exp exp])
+(define-syntax-rule (plugger input hole-stuff pair? car cdr cons)
+  (let loop ([exp input])
     (cond
-      [(pair? exp) 
+      [(pair? exp)
        (define old-car (car exp))
        (define new-car (loop old-car))
        (cond
@@ -2012,11 +2016,24 @@ See match-a-pattern.rkt for more details
               exp
               (cons new-car new-cdr))]
          [else (cons new-car (cdr exp))])]
-      [(eq? the-not-hole exp)
-       the-not-hole]
-      [(eq? the-hole exp)
+      [(the-not-hole? exp)
+       exp]
+      [(the-hole? exp)
        hole-stuff]
       [else exp])))
+
+;; plug : term term -> term
+;; s-expressions as input get converted to terms 
+(define (plug t hole-stuff)
+  (plugger (ensure-term t) (ensure-term hole-stuff) 
+           term-pair? term-car term-cdr term-cons))
+
+;; sexp-plug : sexp sexp -> sexp
+;; ...except that `hole` and `not-hole` are expected to be the term versions,
+;; because that's how rg.rkt likes it
+(define (sexp-plug exp hole-stuff)
+  (plugger exp hole-stuff 
+           pair? car cdr cons))
 
 ;;
 ;; end context adt
@@ -2027,8 +2044,8 @@ See match-a-pattern.rkt for more details
 (define uniq (gensym))
 
 (provide/contract
- (match-pattern (compiled-pattern? any/c . -> . (or/c false/c (listof mtch?))))
- (match-pattern? (compiled-pattern? any/c . -> . boolean?))
+ (match-pattern (compiled-pattern? term? . -> . (or/c false/c (listof mtch?))))
+ (match-pattern? (compiled-pattern? term? . -> . boolean?))
  (compile-pattern (-> compiled-lang? any/c boolean?
                       compiled-pattern?))
  
@@ -2055,6 +2072,7 @@ See match-a-pattern.rkt for more details
          compiled-pattern
          
          plug
+         sexp-plug
          none? none
          
          make-repeat

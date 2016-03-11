@@ -4,7 +4,8 @@
          framework
          racket/pretty
          redex/private/lang-struct
-         redex/private/matcher)
+         redex/private/matcher
+         redex/private/term-repr)
 
 (provide reflowing-snip<%>
          size-editor-snip%
@@ -39,13 +40,13 @@
 
 (define (default-pretty-printer-size-hook val display? op)
   (cond
-    [(hole? val) 4]
+    [(hole? (sexp->term val)) 4]
     [(eq? val 'hole) 6]
     [else #f]))
 
 (define (default-pretty-printer-print-hook val display? op)
   (cond
-    [(hole? val)
+    [(hole? (sexp->term val))
      (display "hole" op)]
     [(eq? val 'hole) 
      (display ",'hole" op)]

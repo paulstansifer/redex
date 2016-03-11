@@ -330,8 +330,8 @@
                (J2 1 2)])
   
   (test (build-derivations (J2 1 any))
-        (list (derivation '(J2 1 1) "one" '())
-              (derivation '(J2 1 2) "two" '())))
+        (list (derivation (sexp->term '(J2 1 1)) "one" '())
+              (derivation (sexp->term '(J2 1 2)) "two" '())))
   
   
   
@@ -347,18 +347,18 @@
   
   
   (test (build-derivations (K (()) any))
-        (list (derivation '(K (()) (z))
+        (list (derivation (sexp->term '(K (()) (z)))
                           #f
-                          (list (derivation '(K () z) #f '())))))
+                          (list (derivation (sexp->term '(K () z)) #f '())))))
   
   (test
    (build-derivations (K (() ()) any))
    (list (derivation 
-          '(K (() ()) (z z))
+          (sexp->term '(K (() ()) (z z)))
           #f
           (list
-           (derivation '(K () z) #f '())
-           (derivation '(K () z) #f '())))))
+           (derivation (sexp->term '(K () z)) #f '())
+           (derivation (sexp->term '(K () z)) #f '())))))
   
   (define-judgment-form L
     #:contract (J any any)
@@ -375,22 +375,22 @@
   (test (build-derivations 
          (J ((()) (())) N))
         (list (derivation
-               '(J ((()) (())) (s (s z)))
+               (sexp->term '(J ((()) (())) (s (s z))))
                #f
                (list (derivation 
-                      '(J (()) (s z))
+                      (sexp->term '(J (()) (s z)))
                       #f
                       (list
                        (derivation
-                        '(J () z)
+                        (sexp->term '(J () z))
                         #F
                         '())))
                      (derivation 
-                      '(J (()) (s z))
+                      (sexp->term '(J (()) (s z)))
                       #f
                       (list
                        (derivation
-                        '(J () z)
+                        (sexp->term '(J () z))
                         #f
                         '())))))))
   
@@ -402,15 +402,15 @@
   
   (test (build-derivations (J3 (()) N))
         (list (derivation
-               '(J3 (()) (s z))
+               (sexp->term '(J3 (()) (s z)))
                #f
                (list
                 (derivation
-                 '(J (()) (s z))
+                 (sexp->term '(J (()) (s z)))
                  #f
                  (list 
                   (derivation 
-                   '(J () z)
+                   (sexp->term '(J () z))
                    #f
                    '()))))))))
 
@@ -420,7 +420,7 @@
   (define term 'x)
   (test (judgment-holds (J ,term)) #t)
   (test (build-derivations (J ,term))
-        (list (derivation '(J x) #f '())))
+        (list (derivation (sexp->term '(J x)) #f '())))
   (test (IO-judgment-form? J) #f))
 
 (let ()
@@ -448,9 +448,9 @@
   (test (build-derivations (even (s (s z))))
         (list
          (derivation
-          '(even (s (s z)))
+          (sexp->term '(even (s (s z))))
           "even2"
-          (list (derivation '(even z) "evenz" '()))))))
+          (list (derivation (sexp->term '(even z)) "evenz" '()))))))
 
 (let ()
   (define-judgment-form empty-language
@@ -466,8 +466,8 @@
   (test (apply-reduction-relation J '(2))
         (judgment-holds (J any (2)) any))
   (test (apply set (apply-reduction-relation/tag-with-names J '(3)))
-        (set (list "smaller" 3)
-             (list "bigger" '(((3) (3)))))))
+        (set (list "smaller" (sexp->term 3))
+             (list "bigger" (sexp->term '(((3) (3))))))))
 
 (let ()
   (define-judgment-form empty-language
@@ -483,8 +483,8 @@
   (test (apply-reduction-relation J '(2))
         (judgment-holds (J (2) any) any))
   (test (apply set (apply-reduction-relation/tag-with-names J '(3)))
-        (set (list "smaller" 3)
-             (list "bigger" '(((3) (3)))))))
+        (set (list "smaller" (sexp->term 3))
+             (list "bigger" (sexp->term '(((3) (3))))))))
 
 (let ()
   (define-language U

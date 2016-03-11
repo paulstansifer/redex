@@ -7,7 +7,6 @@
          racket/promise
          racket/set
          "match-a-pattern.rkt"
-         "matcher.rkt"
          "lang-struct.rkt"
          "extract-conditions.rkt"
          "enum.rkt"

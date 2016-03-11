@@ -5,6 +5,7 @@
          redex/private/reduction-semantics
          redex/private/judgment-form
          redex/private/matcher
+         redex/private/term-repr
          redex/private/term
          redex/private/rg
          redex/private/generate-term
@@ -674,16 +675,16 @@
         1)
   (test (redex-check lang d #t #:attempts 1 #:print? (not #t)) #t)
   (test (redex-check lang d #f #:print? #f)
-        (make-counterexample 5))
+        (make-counterexample (sexp->term 5)))
   (let ([exn (with-handlers ([exn:fail:redex:test? values])
                (redex-check lang d (error 'boom ":(") #:print? #f)
                'not-an-exn)])
-    (test (exn-message exn) "checking 5 raises an exception:\nboom: :(")
+    (test (exn-message exn) (format "checking ~s raises an exception:\nboom: :(" (sexp->term '5)))
     (test (exn-message (exn:fail:redex:test-source exn)) "boom: :(")
     (test (exn:fail:redex:test-term exn) 5))
   
   (test (output (λ () (redex-check lang d #f)))
-        #rx"redex-check: .*:.*\ncounterexample found after 1 attempt:\n5\n")
+        #rx"redex-check: .*:.*\ncounterexample found after 1 attempt:\n.*5.*\n")
   (test (output (λ () (redex-check lang d #t))) 
         #rx"redex-check: .*:.*\nno counterexamples in 1000 attempts\n")
   (let-syntax ([noloc (λ (stx)
@@ -696,14 +697,14 @@
   (test (output (λ () (redex-check lang (d ...) (zero? (modulo (foldl + 0 (term (d ...))) 5)) #:attempts 2)))
         #rx"no counterexamples")
   (test (output (λ () (redex-check lang (d e) #f)))
-        #rx"counterexample found after 1 attempt:\n\\(5 (4|17)\\)\n")
+        #rx"counterexample found after 1 attempt:\n.*\\(5 (4|17)\\).*\n")
   (let* ([p (open-output-string)]
          [m (parameterize ([current-error-port p])
               (with-handlers ([exn:fail? exn-message])
                 (redex-check lang d (error 'pred-raised))
                 'no-exn-raised))])
     (test m "error: pred-raised")
-    (test (get-output-string p) #rx"checking 5 raises.*\n$")
+    (test (get-output-string p) #rx"checking .*5.* raises.*\n$")
     (close-output-port p))
 
   ;; make sure that when it passes we get current-output-port output
@@ -726,7 +727,7 @@
                                   lang 
                                   (--> 42 dontcare)
                                   (--> 0 dontcare z)))))
-        #rx"counterexample found after 1 attempt with z:\n0\n")
+        #rx"counterexample found after 1 attempt with z:\n.*0.*\n")
   
   (let ([generated null]
         [R (reduction-relation 
@@ -749,7 +750,7 @@
     (test (redex-check lang any (= (term any) 1)
                         #:source R
                         #:print? #f)
-          (make-counterexample 2)))
+          (make-counterexample (sexp->term 2))))
   
   (let ()
     (define-metafunction lang
@@ -760,7 +761,7 @@
              (redex-check lang (n) (eq? 42 (term n)) 
                           #:attempts 1
                           #:source mf)))
-          #px"counterexample found after 1 attempt with clause at .*:\\d+:\\d+:\n\\(0\\)\n")
+          #px"counterexample found after 1 attempt with clause at .*:\\d+:\\d+:\n.*\\(0\\).*\n")
     (test (redex-check lang any #t 
                        #:attempts 1 
                        #:source mf
@@ -769,7 +770,7 @@
     (test (redex-check lang any (= (car (term any)) 42)
                         #:source mf
                         #:print? #f)
-          (make-counterexample '(0))))
+          (make-counterexample (sexp->term '(0)))))
   
   (let ()
     (define-metafunction lang
@@ -808,11 +809,11 @@
           (redex-check lang number #:ad-hoc (= 0 (term number))
                        #:prepare add1
                        #:print? #f))
-        (counterexample 1))
+        (counterexample (sexp->term 1)))
   (test (raised-exn-msg
          exn:fail?
          (redex-check lang 0 #:ad-hoc #t #:prepare (λ (_) (error 'fixer)) #:print? #f))
-        #rx"fixing 0")
+        #rx"fixing .*0.*")
   ;; ensure no errors
   (test (begin (redex-check lang natural #:ad-hoc #t #:prepare (compose - add1))
                (void))
@@ -826,7 +827,7 @@
                      #:prepare add1
                      #:source (reduction-relation lang (--> 0 1))
                      #:print? #f)
-        (counterexample 1))
+        (counterexample (sexp->term 1)))
   
   (test-contract-violation/client
    "#:attempts argument"
@@ -1025,7 +1026,7 @@
            (curry = 0)
            #:prepare add1
            #:print? #f))
-        (counterexample 1))
+        (counterexample (sexp->term 1)))
   (test (raised-exn-msg
          exn:fail?
          (check-reduction-relation
@@ -1033,7 +1034,7 @@
           (λ (_) #t)
           #:prepare (λ (_) (error 'fixer))
           #:print? #f))
-        #rx"fixing 0")
+        #rx"fixing .*0.*")
   (test-contract-violation/client
    "#:prepare argument" 
    (check-reduction-relation 
@@ -1046,14 +1047,14 @@
           #rx"check-reduction-relation:.*no counterexamples")
     (test (output 
            (λ () (check-reduction-relation S (λ (x) #f))))
-          #rx"counterexample found after 1 attempt with name:\n1\n")
+          #rx"counterexample found after 1 attempt with name:\n.*1.*\n")
     (test (output 
            (λ () (check-reduction-relation S (curry eq? 1))))
-          #px"counterexample found after 1 attempt with clause at .*:\\d+:\\d+:\n3\n"))
+          #px"counterexample found after 1 attempt with clause at .*:\\d+:\\d+:\n.*3.*\n"))
   
   (test (output 
          (λ () (check-reduction-relation (reduction-relation L (--> 1 2) (--> 3 4 name)) (curry eq? 1))))
-        #px"counterexample found after 1 attempt with name:\n3\n")
+        #px"counterexample found after 1 attempt with name:\n.*3.*\n")
   
   (test (let/ec k
           (parameterize ([generation-decisions 
@@ -1082,7 +1083,7 @@
                 T (curry equal? '(9 4)) 
                 #:attempts 1))))
           #rx"no counterexamples"))
-  
+
   ;; just check that this doesn't raise an errors.
   (let ()
     (define-language empty)
@@ -1113,7 +1114,12 @@
     (test-contract-violation/client
      "#:prepare argument"
      (check-reduction-relation R values #:prepare (λ (_) (values 1 2))))
-    (test-contract-violation/client (check-reduction-relation R #t))))
+    (test (raised-exn-msg
+           exn:fail?
+           (check-reduction-relation R #t))
+          #rx"application: not a procedure")))
+
+
 
 ; check-metafunction
 (let ()
@@ -1199,7 +1205,7 @@
            f (compose (curry = 0) car)
            #:prepare (compose list add1 car)
            #:print? #f))
-        (counterexample '(1)))
+        (counterexample (sexp->term '(1))))
   (test (let ()
           (define-metafunction empty
             [(f 0) 0])
@@ -1209,7 +1215,7 @@
             f (λ (_) #t)
             #:prepare (λ (_) (error 'fixer))
             #:print? #f)))
-        #rx"fixing \\(0\\)")
+        #rx"fixing .*\\(0\\).*")
   
   (let ()
     (define-metafunction empty
@@ -1226,7 +1232,10 @@
     (test-contract-violation/client
      "#:prepare argument"
      (check-metafunction f void #:prepare car #:print? #f))
-    (test-contract-violation/client (check-metafunction f (λ () #t))))
+    (test (raised-exn-msg
+           exn:fail?
+           (check-metafunction f (λ () #t)))
+          #rx"the expected number of arguments does not match the given number"))
   
   ; Extension reinterprets the LHSs of the base metafunction
   ; relative to the new language.

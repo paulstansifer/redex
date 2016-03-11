@@ -25,7 +25,7 @@
   (test (capture-output (test-->> red 1 2) (test-results))
         "One test passed.\n")
   (test (capture-output (test-->> red 2 3) (test-results))
-        #rx"FAILED .*tl-test.(?:.+):[0-9.]+\nexpected: 3\n  actual: 2\n1 test failed \\(out of 1 total\\).\n"))
+        #rx"FAILED .*tl-test.(?:.+):[0-9.]+\nexpected: .*3.*\n  actual: .*2.*\n1 test failed \\(out of 1 total\\).\n"))
 
 (let ()
   (define red-share (reduction-relation 
@@ -53,7 +53,7 @@
   (test (capture-output (test-->> subred #:pred number? 1 -1) (test-results))
         "One test passed.\n")
   (test (capture-output (test-->> subred #:pred odd? 1 -1) (test-results))
-        #rx"FAILED .*tl-test.rkt:[0-9.]+\nfound a term that failed #:pred: 0\n1 test failed \\(out of 1 total\\).\n"))
+        #rx"FAILED .*tl-test.rkt:[0-9.]+\nfound a term that failed #:pred: .*0.*\n1 test failed \\(out of 1 total\\).\n"))
 
 (let ()
   (define-metafunction empty-language [(f any) ((any))])
@@ -130,7 +130,7 @@
   (test (capture-output (test--> R #:equiv mod2=? 7 1 0) (test-results))
         "One test passed.\n")
   (test (capture-output (test--> R #:equiv mod2=? 7 1) (test-results))
-        #rx"FAILED .*tl-test\\.(?:.+):[0-9.]+\nexpected: 1\n  actual: 8\n  actual: 7\n1 test failed \\(out of 1 total\\).\n"))
+        #rx"FAILED .*tl-test\\.(?:.+):[0-9.]+\nexpected: .*1.*\n  actual: .*8.*\n  actual: .*7.*\n1 test failed \\(out of 1 total\\).\n"))
 
 (let-syntax ([test-bad-equiv-arg
               (λ (stx)

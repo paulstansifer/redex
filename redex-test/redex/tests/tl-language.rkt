@@ -30,7 +30,7 @@
         (and m
              (= 1 (length m))
              (match-bindings (car m))))
-      (list (make-bind 'any_1 '())))
+      (list (make-bind 'any_1 (sexp->term '()))))
 
 (test (pair? (redex-match grammar M '(1 1))) #t)
 (test (pair? (redex-match grammar M '(1 1 1))) #f)
@@ -273,7 +273,7 @@
               (for/list ([match actual])
                 (for/list ([bind (match-bindings match)])
                   (list (bind-name bind) (bind-exp bind)))))
-             (apply set (list (list (list 'var (term val)) ...) ...))))]))
+             (apply set (list (list (list 'var (sexp->term (term val))) ...) ...))))]))
 
 ;; cross
 (let ()
@@ -607,10 +607,11 @@
         2)
   (test (with-handlers ([exn:fail:redex? exn-message])
           (redex-let L ([(n) 1]) 'no-exn))
-        "redex-let: term 1 does not match pattern (n)")
+        (format "redex-let: term ~s does not match pattern (n)" (sexp->term 1)))
   (test (with-handlers ([exn:fail:redex? exn-message])
           (redex-let L ([(n_1 ... n_i n_i+1 ...) '(1 2 3)]) 'no-exn))
-        "redex-let: pattern (n_1 ... n_i n_i+1 ...) matched term (1 2 3) multiple ways")
+        (format "redex-let: pattern (n_1 ... n_i n_i+1 ...) matched term ~s multiple ways"
+                (sexp->term '(1 2 3))))
   (test (redex-let L ([n_1 1])
                    (redex-let L ([n_1 2] [n_2 (term n_1)])
                               (term (n_1 n_2))))
@@ -684,26 +685,26 @@
                           [(variable_x variable_y)
                            (cons (term variable_x)
                                  (term variable_y))])
-       '(x y))
-      '(x . y))
+       (sexp->term '(x y)))
+      (sexp->term '(x . y)))
 
 (test ((term-match/single empty-language
                           [(side-condition (variable_x variable_y)
                                            (eq? (term variable_x) 'x))
                            (cons (term variable_x)
                                  (term variable_y))])
-       '(x y))
-      '(x . y))
+       (sexp->term '(x y)))
+      (sexp->term '(x . y)))
 
 (test ((term-match/single empty-language [() 'a] [() 'b])
-       '())
-      'a)
+       (sexp->term '()))
+      (sexp->term 'a))
 
 (test (with-handlers ((exn:fail:redex? (λ (x) 'right-exn))
                       ((λ (x) #t) (λ (x) 'wrong-exn)))
         ((term-match/single empty-language
                             [(number_1 ... number_2 ...) 1])
-         '(1 2 3))
+         (sexp->term '(1 2 3)))
         'no-exn)
       'right-exn)
 
@@ -711,14 +712,14 @@
                       ((λ (x) #t) (λ (x) 'wrong-exn)))
         ((term-match/single empty-language
                             [(number_1 ... number_2 ...) 1])
-         'x)
+         (sexp->term 'x))
         'no-exn)
       'right-exn)
 
 (test ((term-match empty-language
                    [(number_1 ... number_2 ...) 1])
-       'x)
-      '())
+       (sexp->term 'x))
+      (sexp->term '()))
 
 (define-language x-is-1-language
   [x 1])
@@ -726,14 +727,14 @@
 (test ((term-match/single x-is-1-language
                           [(x x)
                            1])
-       '(1 1))
-      1)
+       (sexp->term '(1 1)))
+      (sexp->term 1))
 
 (test (call-with-values
        (λ () 
          ((term-match/single empty-language
                              [() (values 1 2)])
-          '()))
+          (sexp->term '())))
        list)
       '(1 2))
 
@@ -742,17 +743,17 @@
                            [(any_a ... number_1 any_b ...)
                             (begin (set! x (+ x 1))
                                    (term number_1))])
-               '(1 2 3))
+               (sexp->term '(1 2 3)))
               x))
-      '((1 2 3) . 3))
+      (sexp->term '((1 2 3) . 3)))
 
 (test ((term-match empty-language
                    [number_1
                     (term number_1)]
                    [number_1
                     (term number_1)])
-       '1)
-      '(1 1))
+       (sexp->term '1))
+      (sexp->term '(1 1)))
 
 (define-syntax (get-nt-hole-map stx)
   (syntax-case stx ()

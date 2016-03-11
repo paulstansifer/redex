@@ -2,6 +2,7 @@
 
 (require redex/private/matcher
          redex/private/lang-struct
+         redex/private/term-repr
          (only-in "private/test-util.rkt" equal/bindings?)
          (for-syntax racket/base)
          racket/list)
@@ -9,8 +10,12 @@
 (module test racket/base)
 
 (error-print-width 500)
+
+;; We're specifically dealing with sexps here, not terms
+(define the-sexp-hole (term->sexp the-hole))
+(define the-sexp-not-hole (term->sexp the-not-hole))
   
-(define (make-test-mtch a b c) (make-mtch a (build-flat-context b) c))
+(define (make-test-mtch a b c) (make-mtch a (build-flat-context (ensure-term b)) c))
   
 (define (test)
   (let-syntax ([this-line (λ (stx) (datum->syntax #'here (syntax-line stx)))])
@@ -69,7 +74,7 @@
     (test-lang (this-line)
                '(name x (nt x))
                'y
-               (list (make-mtch (make-bindings (list (make-bind 'x 'y))) 'y none))
+               (list (make-mtch (make-bindings (list (make-bind 'x 'y))) (sexp->term 'y) none))
                (list (make-nt 'x (list (make-rhs '(variable-except x))))))
     (test-empty '(variable-prefix x:) 'x: (list (make-test-mtch (make-bindings null) 'x: none)))
     (test-empty '(variable-prefix x:) 'x:x (list (make-test-mtch (make-bindings null) 'x:x none)))
@@ -78,16 +83,16 @@
     
     (test-empty 'hole 1 #f)
     (test-empty 'hole
-                the-hole
-                (list (make-test-mtch (make-bindings (list)) the-hole none)))
+                the-sexp-hole
+                (list (make-test-mtch (make-bindings (list)) the-sexp-hole none)))
     (test-empty '(in-hole (list hole 2) 1)
                 '(1 2)
                 (list (make-test-mtch (make-bindings (list)) `(1 2) none)))
     
     (test-empty '(in-hole (name E_1 (list (hide-hole hole) hole)) x)
-                `(,the-hole x)
+                `(,the-sexp-hole x)
                 (list (make-test-mtch (make-bindings (list (make-bind 'E_1 `(,the-not-hole ,the-hole)))) 
-                                      `(,the-hole x)
+                                      `(,the-sexp-hole x)
                                       none)))
     
     (test-empty '(name x (name number number)) 1 (list (make-test-mtch (make-bindings (list (make-bind 'x 1) (make-bind 'number 1))) 1 none)))
@@ -174,7 +179,7 @@
                                                       (make-bind 'x_2 '(2))
                                                       (make-bind '..._2 1)
                                                       (make-bind '..._1 2)))
-                                 '(1 1 1 1 2 2)
+                                 (sexp->term '(1 1 1 1 2 2))
                                  none)))
     
     (test-ellipses '(a) '(a))
@@ -405,16 +410,19 @@
     (test-empty '(list (repeat a #f #f) (repeat b #f #f)) '(c) #f)
     (test-empty '(list (repeat a #f #f) b) '(b c) #f)
     (test-empty '(list (repeat a #f #f) b) '(a b c) #f)
-    
+
+
+    ;; these tests depend on details of the internal representation
+    #|
     (test-lang (this-line)
                '(list (name n (nt n)) (repeat (name n (nt n)) #f #f))
                '((1 1) 1 1)
-               (list (make-mtch (make-bindings (list (make-bind 'n '(1 1)))) '((1 1) 1 1) none))
+               (list (make-mtch (make-bindings (list (make-bind 'n '(1 1)))) (sexp->term '((1 1) 1 1)) none))
                (list (make-nt 'n (list (make-rhs 'any) (make-rhs 'number)))))
-    (test-lang (this-line)
+    (test-lang (this-line) 
                '(list (name n (nt n)) (list (repeat (name n (nt n)) #f #f)))
                '((1 1) (1 1))
-               (list (make-mtch (make-bindings (list (make-bind 'n '(1 1)))) '((1 1) (1 1)) none))
+               (list (make-mtch (make-bindings (list (make-bind 'n '(1 1)))) (sexp->term '((1 1) (1 1))) none))
                (list (make-nt 'n (list (make-rhs 'any) (make-rhs 'number)))))
     (test-empty '(list (name x (name any any)) 
                        (list (repeat (name x (name number number)) #f #f)))
@@ -424,6 +432,7 @@
                                                            (make-bind 'number '(1 1))))
                                       '((1 1) (1 1)) 
                                       none)))
+    |#
     
     (test-empty '(list (repeat (list variable_1 variable_1) #f #f))
                 '((x y))
@@ -456,24 +465,24 @@
     (test-xab '(name exp (nt exp)) '(+ 1 2) (list (make-test-mtch (make-bindings (list (make-bind 'exp '(+ 1 2)))) '(+ 1 2) none)))
     (test-xab '(in-hole (name ctxt (nt ctxt)) (name any any))
               '1
-              (list (make-test-mtch (make-bindings (list (make-bind 'ctxt the-hole) (make-bind 'any 1))) 1 none)))
+              (list (make-test-mtch (make-bindings (list (make-bind 'ctxt the-sexp-hole) (make-bind 'any 1))) 1 none)))
     (test-xab '(in-hole (name ctxt (nt ctxt)) (name x (name any any)))
               '1
-              (list (make-test-mtch (make-bindings (list (make-bind 'ctxt the-hole) (make-bind 'x 1) (make-bind 'any 1))) 1 none)))
+              (list (make-test-mtch (make-bindings (list (make-bind 'ctxt the-sexp-hole) (make-bind 'x 1) (make-bind 'any 1))) 1 none)))
     (test-xab '(in-hole (name c (name ctxt (nt ctxt))) (name x (name any any)))
               '(+ 1 2)
-              (list (make-test-mtch (make-bindings (list (make-bind 'ctxt (build-context the-hole))
-                                                         (make-bind 'c (build-context the-hole))
+              (list (make-test-mtch (make-bindings (list (make-bind 'ctxt (build-context the-sexp-hole))
+                                                         (make-bind 'c (build-context the-sexp-hole))
                                                          (make-bind 'x '(+ 1 2))
                                                          (make-bind 'any '(+ 1 2))))
                                     '(+ 1 2) none)
-                    (make-test-mtch (make-bindings (list (make-bind 'ctxt (build-context `(+ ,the-hole 2)))
-                                                         (make-bind 'c (build-context `(+ ,the-hole 2)))
+                    (make-test-mtch (make-bindings (list (make-bind 'ctxt (build-context `(+ ,the-sexp-hole 2)))
+                                                         (make-bind 'c (build-context `(+ ,the-sexp-hole 2)))
                                                          (make-bind 'x 1)
                                                          (make-bind 'any 1)))
                                     '(+ 1 2) none)
-                    (make-test-mtch (make-bindings (list (make-bind 'ctxt (build-context `(+ 1 ,the-hole)))
-                                                         (make-bind 'c (build-context `(+ 1 ,the-hole)))
+                    (make-test-mtch (make-bindings (list (make-bind 'ctxt (build-context `(+ 1 ,the-sexp-hole)))
+                                                         (make-bind 'c (build-context `(+ 1 ,the-sexp-hole)))
                                                          (make-bind 'x 2)
                                                          (make-bind 'any 2))) 
                                     '(+ 1 2) none)))
@@ -483,15 +492,15 @@
                      (make-bindings (list (make-bind 'i '(+ 1 2))
                                           (make-bind 'number_1 1)
                                           (make-bind 'number_2 2)
-                                          (make-bind 'ctxt (build-context `(+ ,the-hole (+ 3 4))))
-                                          (make-bind 'c (build-context `(+ ,the-hole (+ 3 4))))))
+                                          (make-bind 'ctxt (build-context `(+ ,the-sexp-hole (+ 3 4))))
+                                          (make-bind 'c (build-context `(+ ,the-sexp-hole (+ 3 4))))))
                      '(+ (+ 1 2) (+ 3 4))
                      none)
                     (make-test-mtch (make-bindings (list (make-bind 'i '(+ 3 4)) 
                                                          (make-bind 'number_1 3)
                                                          (make-bind 'number_2 4)
-                                                         (make-bind 'ctxt `(+ (+ 1 2) ,the-hole))
-                                                         (make-bind 'c `(+ (+ 1 2) ,the-hole))))
+                                                         (make-bind 'ctxt `(+ (+ 1 2) ,the-sexp-hole))
+                                                         (make-bind 'c `(+ (+ 1 2) ,the-sexp-hole))))
                                '(+ (+ 1 2) (+ 3 4))
                                none)))
     
@@ -501,27 +510,27 @@
     (test-empty '(in-hole (name c (list (repeat z #f #f) hole (repeat z #f #f))) (name any any))
                 '(z z)
                 (list 
-                 (make-test-mtch (make-bindings (list (make-bind 'c `(z ,the-hole)) (make-bind 'any 'z))) '(z z) none)
-                 (make-test-mtch (make-bindings (list (make-bind 'c `(,the-hole z)) (make-bind 'any 'z))) '(z z) none)))
+                 (make-test-mtch (make-bindings (list (make-bind 'c `(z ,the-sexp-hole)) (make-bind 'any 'z))) '(z z) none)
+                 (make-test-mtch (make-bindings (list (make-bind 'c `(,the-sexp-hole z)) (make-bind 'any 'z))) '(z z) none)))
     (test-empty '(in-hole (name c (list (repeat z #f #f) hole (repeat z #f #f))) (name any any))
                 '(z z z)
                 (list 
-                 (make-test-mtch (make-bindings (list (make-bind 'c `(z z ,the-hole)) (make-bind 'any 'z))) '(z z z) none)
-                 (make-test-mtch (make-bindings (list (make-bind 'c `(z ,the-hole z)) (make-bind 'any 'z))) '(z z z) none)
-                 (make-test-mtch (make-bindings (list (make-bind 'c `(,the-hole z z)) (make-bind 'any 'z))) '(z z z) none)))
+                 (make-test-mtch (make-bindings (list (make-bind 'c `(z z ,the-sexp-hole)) (make-bind 'any 'z))) '(z z z) none)
+                 (make-test-mtch (make-bindings (list (make-bind 'c `(z ,the-sexp-hole z)) (make-bind 'any 'z))) '(z z z) none)
+                 (make-test-mtch (make-bindings (list (make-bind 'c `(,the-sexp-hole z z)) (make-bind 'any 'z))) '(z z z) none)))
     
     (test-empty '(list z (in-hole (name c (list z hole)) a))
                 '(z (z a))
                 (list 
-                 (make-test-mtch (make-bindings (list (make-bind 'c `(z ,the-hole))))
+                 (make-test-mtch (make-bindings (list (make-bind 'c `(z ,the-sexp-hole))))
                             '(z (z a))
                             none)))
     
     (test-empty '(list a (in-hole (name c1 (list b (in-hole (name c2 (list c hole)) d) hole)) e))
                 '(a (b (c d) e))
                 (list 
-                 (make-test-mtch (make-bindings (list (make-bind 'c2 `(c ,the-hole))
-                                                 (make-bind 'c1 `(b (c d) ,the-hole))))
+                 (make-test-mtch (make-bindings (list (make-bind 'c2 `(c ,the-sexp-hole))
+                                                 (make-bind 'c1 `(b (c d) ,the-sexp-hole))))
                             '(a (b (c d) e))
                             none)))
 
@@ -532,8 +541,8 @@
     (test-empty '(list a (list b (in-hole (name c1 (in-hole (name c2 (list c hole)) (list d hole))) e)))
                 '(a (b (c (d e))))
                 (list 
-                 (make-test-mtch (make-bindings (list (make-bind 'c1 `(c (d ,the-hole)))
-                                                 (make-bind 'c2 `(c ,the-hole))))
+                 (make-test-mtch (make-bindings (list (make-bind 'c1 `(c (d ,the-sexp-hole)))
+                                                 (make-bind 'c2 `(c ,the-sexp-hole))))
                             '(a (b (c (d e))))
                             none)))
     
@@ -551,7 +560,7 @@
                 '(+ 1 b)
                 #f)
 
-    (test-empty `(side-condition (name x (name any any)) ,(lambda (bindings) (eq? (lookup-binding bindings 'x) 'a)) side-condition-srcloc)
+    (test-empty `(side-condition (name x (name any any)) ,(lambda (bindings) (equal? (lookup-binding bindings 'x) (sexp->term 'a))) side-condition-srcloc)
                 'a
                 (list 
                  (make-test-mtch (make-bindings (list (make-bind 'x 'a)
@@ -560,7 +569,7 @@
                             none)))
 
     (test-empty `(list + 1 (side-condition (name x (name any any))
-                                           ,(lambda (bindings) (eq? (lookup-binding bindings 'x) 'a)) side-condition-srcloc))
+                                           ,(lambda (bindings) (equal? (lookup-binding bindings 'x) (sexp->term 'a))) side-condition-srcloc))
                 '(+ 1 a)
                 (list 
                  (make-test-mtch (make-bindings (list (make-bind 'x 'a)
@@ -568,11 +577,11 @@
                             '(+ 1 a)
                             none)))
 
-    (test-empty `(side-condition (name x any) ,(lambda (bindings) (eq? (lookup-binding bindings 'x) 'a)) (eq? (term x) 'a))
+    (test-empty `(side-condition (name x any) ,(lambda (bindings) (equal? (lookup-binding bindings 'x) (sexp->term 'a))) (equal? (term x) (sexp->term 'a)))
                 'b
                 #f)
     
-    (test-empty `(list + 1 (side-condition (name x any) ,(lambda (bindings) (eq? (lookup-binding bindings 'x) 'a)) (eq? (term x) 'a)))
+    (test-empty `(list + 1 (side-condition (name x any) ,(lambda (bindings) (equal? (lookup-binding bindings 'x) (sexp->term 'a))) (equal? (term x) (sexp->term 'a))))
                 '(+ 1 b)
                 #f)
     
@@ -634,15 +643,15 @@
     
     (test-xab '(in-hole (cross simple-simple) g)
               'g
-              (list (make-mtch (make-bindings (list)) 'g none)))
+              (list (make-mtch (make-bindings (list)) (sexp->term 'g) none)))
     
     (test-xab '(name var (nt var)) '+ #f)
-    (test-xab '(name var (nt var)) 'anunusedvariable (list (make-mtch (make-bindings (list (make-bind 'var 'anunusedvariable))) 'anunusedvariable none)))
-    (test-xab '(name var (nt var)) 'exp (list (make-mtch (make-bindings (list (make-bind 'var 'exp))) 'exp none)))
-    (test-xab '(name var (nt var)) 'exp_x (list (make-mtch (make-bindings (list (make-bind 'var 'exp_x))) 'exp_x none)))
+    (test-xab '(name var (nt var)) 'anunusedvariable (list (make-mtch (make-bindings (list (make-bind 'var 'anunusedvariable))) (sexp->term 'anunusedvariable) none)))
+    (test-xab '(name var (nt var)) 'exp (list (make-mtch (make-bindings (list (make-bind 'var 'exp))) (sexp->term 'exp) none)))
+    (test-xab '(name var (nt var)) 'exp_x (list (make-mtch (make-bindings (list (make-bind 'var 'exp_x))) (sexp->term 'exp_x) none)))
     
-    (test-xab '(name underscore (nt underscore)) '(+ 1 2) (list (make-mtch (make-bindings (list (make-bind 'underscore '(+ 1 2)))) '(+ 1 2) none)))
-    (test-xab '(name underscore (nt underscore)) '2 (list (make-mtch (make-bindings (list (make-bind 'underscore 2))) 2 none)))
+    (test-xab '(name underscore (nt underscore)) '(+ 1 2) (list (make-mtch (make-bindings (list (make-bind 'underscore '(+ 1 2)))) (sexp->term '(+ 1 2)) none)))
+    (test-xab '(name underscore (nt underscore)) '2 (list (make-mtch (make-bindings (list (make-bind 'underscore 2))) (sexp->term 2) none)))
   
     ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
     ;;
@@ -651,52 +660,52 @@
     ;; is hard to know which are and which aren't.
     ;;
     
-    (test-xab '(name x (name y 1)) 1 (list (make-mtch (make-bindings (list (make-bind 'x 1) (make-bind 'y 1))) 1 none)))
+    (test-xab '(name x (name y 1)) 1 (list (make-mtch (make-bindings (list (make-bind 'x 1) (make-bind 'y 1))) (sexp->term 1) none)))
     (test-xab '(list (mismatch-name y_!_1 1)
                      (mismatch-name y_!_1 2))
               '(1 2)
-              (list (make-mtch (make-bindings '()) '(1 2) none)))
+              (list (make-mtch (make-bindings '()) (sexp->term '(1 2)) none)))
     (test-xab '(list (mismatch-name x_!_1 (name a 1))
                      (mismatch-name x_!_1 (name b 2)))
               '(1 2)
-              (list (make-mtch (make-bindings (list (make-bind 'a 1) (make-bind 'b 2))) '(1 2) none)))
-    (test-xab '(in-hole (name x hole) (name y 1)) 1 (list (make-mtch (make-bindings (list (make-bind 'x the-hole) (make-bind 'y 1)))
-                                                                     1
+              (list (make-mtch (make-bindings (list (make-bind 'a 1) (make-bind 'b 2))) (sexp->term '(1 2)) none)))
+    (test-xab '(in-hole (name x hole) (name y 1)) 1 (list (make-mtch (make-bindings (list (make-bind 'x the-sexp-hole) (make-bind 'y 1)))
+                                                                     (sexp->term 1)
                                                                      none)))
-    (test-xab '(in-hole (name x hole) 1) 1 (list (make-mtch (make-bindings (list (make-bind 'x the-hole)))
-                                                            1
+    (test-xab '(in-hole (name x hole) 1) 1 (list (make-mtch (make-bindings (list (make-bind 'x the-sexp-hole)))
+                                                            (sexp->term 1)
                                                             none)))
     (test-xab '(in-hole hole (name y 1)) 1 (list (make-mtch (make-bindings (list (make-bind 'y 1)))
-                                                            1
+                                                            (sexp->term 1)
                                                             none)))
-    (test-xab '(in-hole hole 1) 1 (list (make-mtch (make-bindings '()) 1 none)))
-    (test-xab '(hide-hole (list hole 1)) `(,the-hole 1) (list (make-mtch (make-bindings '()) `(,the-hole 1) none)))
-    (test-xab '(hide-hole (list 2 1)) `(2 1) (list (make-mtch (make-bindings '()) `(2 1) none)))
-    (test-xab '(hide-hole (list (name z 2) 1)) `(2 1) (list (make-mtch (make-bindings (list (make-bind 'z 2))) `(2 1) none)))
-    (test-xab `(side-condition (name x 1) ,(λ (bindings) (equal? bindings (make-bindings (list (make-bind 'x 1))))) 'srcloc)
+    (test-xab '(in-hole hole 1) 1 (list (make-mtch (make-bindings '()) (sexp->term 1) none)))
+    (test-xab '(hide-hole (list hole 1)) `(,the-sexp-hole 1) (list (make-mtch (make-bindings '()) (sexp->term `(,the-sexp-hole 1)) none)))
+    (test-xab '(hide-hole (list 2 1)) `(2 1) (list (make-mtch (make-bindings '()) (sexp->term `(2 1)) none)))
+    (test-xab '(hide-hole (list (name z 2) 1)) `(2 1) (list (make-mtch (make-bindings (list (make-bind 'z 2))) (sexp->term `(2 1)) none)))
+    (test-xab `(side-condition (name x 1) ,(λ (bindings) (equal? bindings (make-bindings (list (make-bind 'x (sexp->term 1)))))) 'srcloc)
               1
-              (list (make-mtch (make-bindings (list (make-bind 'x 1))) 1 none)))
+              (list (make-mtch (make-bindings (list (make-bind 'x 1))) (sexp->term 1) none)))
     (test-xab `(side-condition 2 ,(λ (bindings) (equal? bindings (make-bindings '()))) 'srcloc)
               2
-              (list (make-mtch (make-bindings '()) 2 none)))
+              (list (make-mtch (make-bindings '()) (sexp->term 2) none)))
     (test-xab '(list (repeat (name x 1) #f #f))
               '(1 1 1)
-              (list (make-mtch (make-bindings (list (make-bind 'x '(1 1 1)))) '(1 1 1) none)))
+              (list (make-mtch (make-bindings (list (make-bind 'x '(1 1 1)))) (sexp->term '(1 1 1)) none)))
     (test-xab '(list (repeat 1 ..._1 #f))
               '(1 1 1)
-              (list (make-mtch (make-bindings (list (make-bind '..._1 3))) '(1 1 1) none)))
+              (list (make-mtch (make-bindings (list (make-bind '..._1 3))) (sexp->term '(1 1 1)) none)))
     (test-xab '(list (repeat 1 #f ..._!_1)
                      (repeat 2 #f ..._!_1))
               '(1 1 2)
-              (list (make-mtch (make-bindings '()) '(1 1 2) none)))
+              (list (make-mtch (make-bindings '()) (sexp->term '(1 1 2)) none)))
     (test-xab '(list (repeat 1 #f #f))
               '(1 1 1)
-              (list (make-mtch (make-bindings '()) '(1 1 1) none)))
+              (list (make-mtch (make-bindings '()) (sexp->term '(1 1 1)) none)))
     
     (test-xab '(in-hole (name hh-D (nt hh-D)) whatever)
-              `(,the-hole whatever)
-              (list (make-mtch (make-bindings (list (make-bind 'hh-D (list the-hole the-not-hole))))
-                               `(,the-hole whatever)
+              `(,the-sexp-hole whatever)
+              (list (make-mtch (make-bindings (list (make-bind 'hh-D (list the-sexp-hole the-sexp-not-hole))))
+                               (sexp->term `(,the-sexp-hole whatever))
                                none)))
 
     ;;
@@ -856,10 +865,10 @@
   (define (test-empty/proc line pat exp ans)
     (run-match-test
      line
-     `(match-pattern (compile-pattern (compile-language 'pict-stuff-not-used '() (hash) no-binding-forms) ',pat #t) ',exp)
+     `(match-pattern (compile-pattern (compile-language 'pict-stuff-not-used '() (hash) no-binding-forms) ',pat #t) (sexp->term ',exp))
      (match-pattern 
       (compile-pattern (compile-language 'pict-stuff-not-used '() (hash) no-binding-forms) pat #t)
-      exp)
+      (sexp->term exp))
      ans))
   
   ;; test-lang : sexp[pattern] sexp[term] answer (list/c nt) -> void
@@ -869,10 +878,10 @@
                                    nts))])
       (run-match-test
        line
-       `(match-pattern (compile-pattern (compile-language 'pict-stuff-not-used ',nts ,nt-map no-binding-forms) ',pat #t) ',exp)
+       `(match-pattern (compile-pattern (compile-language 'pict-stuff-not-used ',nts ,nt-map no-binding-forms) ',pat #t) (sexp->term ',exp))
        (match-pattern 
         (compile-pattern (compile-language 'pict-stuff-not-used nts nt-map no-binding-forms) pat #t)
-        exp)
+        (sexp->term exp))
        ans)))
   
   (define xab-lang #f)
@@ -935,8 +944,8 @@
                               no-binding-forms))))
     (run-match-test
      line
-     `(match-pattern (compile-pattern xab-lang ',pat #t) ',exp)
-     (match-pattern (compile-pattern xab-lang pat #t) exp)
+     `(match-pattern (compile-pattern xab-lang ',pat #t) (sexp->term ',exp))
+     (match-pattern (compile-pattern xab-lang pat #t) (sexp->term exp))
      ans))
   
   (define ab-lang #f)
@@ -955,8 +964,8 @@
              no-binding-forms)))
     (run-match-test
      line
-     `(match-pattern (compile-pattern ab-lang ',pat #t) ',exp)
-     (match-pattern (compile-pattern ab-lang pat #t) exp)
+     `(match-pattern (compile-pattern ab-lang ',pat #t) (sexp->term ',exp))
+     (match-pattern (compile-pattern ab-lang pat #t) (sexp->term exp))
      ans))
   
   ;; test-ellipses : sexp sexp -> void
@@ -998,7 +1007,7 @@
                      (compile-pattern (compile-language 'pict-stuff-not-used nts 
                                                         (mk-uf-sets (map (λ (x) (list (nt-name x))) nts )) no-binding-forms)
                                       pat #t)))
-                  exp
+                  (sexp->term exp)
                   #t
                   0)])
        (if mtch
@@ -1046,15 +1055,17 @@
                  (= (length xs) (length ys)))]
            [else #f])))))
   
+  ;; build-context : sexp -> sexp
   (define (build-context c)
-    (let loop ([c c])
-      (cond
-        [(eq? c the-hole) the-hole]
-        [(pair? c) (build-cons-context (loop (car c)) (loop (cdr c)))]
-        [(or (null? c)
-             (number? c)
-             (symbol? c))
+    (term->sexp
+     (let loop ([c (sexp->term c)])
+       (cond
+        [(the-hole? c) the-hole]
+        [(term-pair? c) (build-cons-context (loop (term-car c)) (loop (term-cdr c)))]
+        [(or (term-null? c)
+             (number? (term->sexp c))
+             (symbol? (term->sexp c)))
          (build-flat-context c)]
-        [else (error 'build-context "unknown ~s" c)])))
+        [else (error 'build-context "unknown ~s" c)]))))
   
   (test)

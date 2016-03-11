@@ -474,7 +474,7 @@ reflects the (broken) spec).
               (eprintf "FAILED: ~a\n" msg)
               (k (void)))]
            [got (normalize in failed)])
-      (unless (equal? got out)
+      (unless (equal? (term->sexp got) out)
         (eprintf "FAILED:   ~s\ngot:      ~s\nexpected: ~s\n" in got out)
         (set! failed-tests (+ failed-tests 1))))))
 

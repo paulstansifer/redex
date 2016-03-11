@@ -8,7 +8,7 @@
 (#rx"incompatible ellipsis match counts"
  ([body ((((f x) y) ...) ...)])
  ([fn f] [xlhs (x ...)] [ylhs ((y ...) ...)])
- (term-let-fn ([fn car])
+ (term-let-fn ([fn (lambda (x) (sexp->term (car (term->sexp x))))])
               (term-let ([xlhs '(a b c)]
                          [ylhs '((1 2) (4 5 6) (7 8 9))])
                         (term body))))

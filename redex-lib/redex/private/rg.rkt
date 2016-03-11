@@ -425,7 +425,7 @@
                    (λ (r s a e f)
                      (let*-values ([(filler env) (c-filler r s a e f)]
                                    [(context env) (c-context r s a env the-hole)])
-                       (values (plug context filler) env))))]
+                       (values (sexp-plug context filler) env))))]
                 [`(hide-hole ,pattern)
                  (let ([g (recur pattern)])
                    (λ (r s a e f)
@@ -499,7 +499,7 @@
     (λ (size attempt retries)
       (define-values (t e) (g retries size attempt empty-env the-hole))
       (values (let replace-the-not-hole ([t t])
-                (cond [(eq? t the-not-hole) the-hole]
+                (cond [(the-not-hole? t) the-hole]
                       [(list? t) (map replace-the-not-hole t)]
                       [else t])) 
               (bindings e)))))

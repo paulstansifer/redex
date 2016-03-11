@@ -2,6 +2,7 @@
 
 (require redex/private/matcher
          redex/private/lang-struct
+         redex/private/term-repr
          (for-syntax syntax/parse setup/path-to-relative)
          setup/path-to-relative
          racket/runtime-path)
@@ -76,6 +77,10 @@
   (let loop ([fst fst]
              [snd snd])
     (cond
+      [(term? fst)
+       (loop (term->sexp fst) snd)]
+      [(term? snd)
+       (loop fst (term->sexp snd))]
       [(pair? fst)
        (and (pair? snd) 
             (loop (car fst) (car snd))
@@ -107,8 +112,8 @@
             (let ([g (gensym 'run-match-test-sym2)])
               (equal/bindings? (bind-exp fst)
                                (bind-exp snd))))]
-      [(and (hole? fst)
-            (hole? snd))
+      [(and (term? fst) (term? snd) ;; only terms can be holes, and `hole?` fails
+            (hole? fst) (hole? snd))
        #t]
       [else (equal? fst snd)])))
 
