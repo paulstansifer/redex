@@ -218,8 +218,8 @@
        [((-side-condition s ...) y ...)
         (side-condition-keyword? #'-side-condition)
         (if side-condition-unquoted?
-            #`(and s ... #,(loop #'(y ...) to-not-be-in env))
-            #`(and (term s) ... #,(loop #'(y ...) to-not-be-in env)))]
+            #`(and (term->sexp s) ... #,(loop #'(y ...) to-not-be-in env))
+            #`(and (term->sexp (term s)) ... #,(loop #'(y ...) to-not-be-in env)))]
        [((fresh x) y ...)
         (identifier? #'x)
         #`(term-let ([x (variable-not-in #,to-not-be-in 'x)])

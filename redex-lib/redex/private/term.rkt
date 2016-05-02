@@ -58,12 +58,9 @@
                   (loop (term-id-prev-id slv))
                   (values (language-id-nts ls 'term)
                           (language-id-nt-identifiers ls 'term)))))
-          ;; if #:lang is provided, produce the proper term representation
           (quasisyntax/loc stx (term/nts t #,lang-nts #,lang-nt-ids))]
          [else
-          ;; if #:lang isn't provided, produce an S-expression, because it's likely
-          ;; that the user is about to treat it like one
-          (syntax/loc stx (term->sexp (term/nts t #f #f)))]))]))
+          (syntax/loc stx (term/nts t #f #f))]))]))
 
 (define-syntax (term/nts stx)
   (syntax-case stx ()
@@ -223,12 +220,14 @@
                               #,(defined-check ref "term" #:external #'x)
                               #,ref)])
            (values #`(undatum v) 0)))]
-      [(unquote x)
-       (values (syntax (undatum x)) 0)]
+      ;; TODO: when terms have internal information, we should preserve that with something that
+      ;; doesn't convert all the way to s-expressions
+      [(unquote x) 
+       (values (syntax (undatum (term->sexp x))) 0)]
       [(unquote . x)
        (raise-syntax-error 'term "malformed unquote" arg-stx stx)]
       [(unquote-splicing x)
-       (values (syntax (undatum-splicing x)) 0)]
+       (values (syntax (undatum-splicing (term->sexp x))) 0)]
       [(unquote-splicing . x)
        (raise-syntax-error 'term "malformed unquote splicing" arg-stx stx)]
       [(in-hole id body)

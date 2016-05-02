@@ -16,7 +16,7 @@
 
 (let ()
   (define-relation empty-language
-    [(<: number_1 number_2) ,(< (term number_1) (term number_2))]
+    [(<: number_1 number_2) ,(< (term->sexp (term number_1)) (term->sexp (term number_2)))]
     [(<: number_1 number_1) #t])
   
   (test (term (<: 1 2)) #t)
@@ -42,8 +42,8 @@
 (let ()
   (define-relation empty-language
     [(<: number_1 number_2 number_3)
-     ,(= (term number_1) (term number_2))
-     ,(= (term number_2) (term number_3))])
+     ,(= (term->sexp (term number_1)) (term->sexp (term number_2)))
+     ,(= (term->sexp (term number_2)) (term->sexp (term number_3)))])
   (test (term (<: 1 2 3)) #f)
   (test (term (<: 1 1 2)) #f)
   (test (term (<: 1 2 2)) #f)

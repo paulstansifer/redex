@@ -82,17 +82,16 @@
 (define-syntax (term-match stx)
   (term-matcher stx #'term-match/proc))
 
-(define ((term-match/proc form-name lang ps cps rhss) term-or-sexp)
+(define ((term-match/proc form-name lang ps cps rhss) term)
   (append-map
    (λ (cp rhs)
-     (let ([matches (match-pattern cp (ensure-term term-or-sexp))])
+     (let ([matches (match-pattern cp term)])
        (if matches
            (map rhs matches)
            '())))
    cps rhss))
 
-(define ((term-match/single/proc form-name lang ps0 cps rhss) term-or-sexp)
-  (define term (ensure-term term-or-sexp))
+(define ((term-match/single/proc form-name lang ps0 cps rhss) term)
   (let loop ([ps ps0] [cps cps] [rhss rhss])
     (if (null? ps)
         (redex-error form-name 
@@ -156,7 +155,7 @@
          (with-syntax ([rest-lets (nested-lets lang #'bindings bodies name)])
            #`(#,(term-matcher #`(#,name #,lang [lhs rest-lets]) 
                               #'term-match/single/proc) 
-              (ensure-term rhs)))]))
+              rhs))]))
     
     (values redex-let redex-let*)))
 
@@ -261,7 +260,7 @@
                              ;; this list is because we expect one argument
                              ;; judgment forms, but the general API puts the
                              ;; arguments into a list. 
-                             (ensure-term (list v))
+                             (list v)
                              
                              #f
                              (runtime-judgment-form-cache p)
@@ -282,7 +281,7 @@
              [(null? procs) acc]
              [else
               (loop (cdr procs)
-                    ((car procs) (ensure-term v) acc))]))))
+                    ((car procs) v acc))]))))
      (if tag-with-names?
          (map cdr proc-results)
          (map caddr proc-results))]))
@@ -1139,9 +1138,9 @@
   (define cpat (compile-pattern lang pat #t))
   (define redex-match-proc
     (if boolean-only?
-        (λ (exp) (match-pattern? cpat (ensure-term exp)))
+        (λ (exp) (match-pattern? cpat exp))
         (λ (exp)
-          (let ([ans (match-pattern cpat (ensure-term exp))])
+          (let ([ans (match-pattern cpat exp)])
             (and ans
                  (map (λ (m) (make-match (sort-bindings 
                                           (filter (λ (x) (and (memq (bind-name x) binders)
@@ -1175,7 +1174,7 @@
 (define (in-domain?/proc mf exp)
   (let ([mp (metafunction-proc mf)])
     ((metafunc-proc-in-dom? mp)
-     (ensure-term exp))))
+     exp)))
 
 (define-for-syntax (lhs-lws clauses)
   (with-syntax ([((lhs-for-lw _ ...) ...) clauses])
@@ -1414,7 +1413,7 @@
                                         #f
                                         (if post-condition
                                             #`(side-condition (#,dom-ctcs #,codom-contract)
-                                                              (term #,post-condition))
+                                                              (term->sexp (term #,post-condition)))
                                             codom-contract)))
                                      codom-contracts)]
                                [(rhs-fns ...)
@@ -1497,7 +1496,7 @@
                               #,(bind-pattern-names 'define-metafunction
                                                     #'dom-names/ellipses
                                                     #'((lookup-binding bindings 'dom-names) ...)
-                                                    #`(term #,pre-condition)))
+                                                    #`(term->sexp (term #,pre-condition))))
                             `(codom-side-conditions-rewritten ...)
                             #,(and post-condition #t)
                             'name))))
@@ -2628,9 +2627,6 @@
   (values (apply-reduction-relation red arg) #f))
 
 (define (test-->>/procs name red arg-thnk expected-thnk apply-red cycles-ok? equiv? pred srcinfo)
-  ;; The user can provide `pred` and `equiv?`. In the old system, they would be functions on
-  ;; s-expressions, so for backwards-compatibility we have to convert to s-expressions.
-  ;; This is sad.
   (unless (reduction-relation? red)
     (error name "expected a reduction relation as first argument, got ~e" red))
   (when pred
@@ -2639,13 +2635,13 @@
       (error 'test-->> "expected a procedure that accepted one argument for the #:pred, got ~e" pred)))
   (define-values (arg expected)
     (parameterize ([default-language (reduction-relation-lang red)])
-      (values (ensure-term (arg-thnk)) (map ensure-term (expected-thnk)))))
+      (values (arg-thnk) (expected-thnk))))
   (inc-tests)
   (define visit-already-failed? #f)
   (define (visit t)
     (when pred
       (unless visit-already-failed?
-        (unless (pred (term->sexp t)) 
+        (unless (pred t)
           (set! visit-already-failed? #t)
           (inc-failures)
           (print-failed srcinfo)
@@ -2659,7 +2655,7 @@
        (eprintf "found a cycle in the reduction graph\n")]
       [else
        (unless visit-already-failed?
-         (let* ([⊆ (λ (s1 s2) (andmap (λ (x1) (memf (λ (x) (equiv? (term->sexp x1) (term->sexp x)))
+         (let* ([⊆ (λ (s1 s2) (andmap (λ (x1) (memf (λ (x) (equiv? x1 x))
                                                     s2)) s1))]
                 [set-equal? (λ (s1 s2) (and (⊆ s1 s2) (⊆ s2 s1)))])
            (unless (set-equal? expected got)
@@ -2689,12 +2685,10 @@
 (define (test-->>∃/proc relation start goal steps srcinfo)
   (let ([result (traverse-reduction-graph 
                  relation
-                 (ensure-term start) 
-                 ;; more sadness: we have to convert to a s-expression before passing to `goal`,
-                 ;; if it's a user-provided function
+                 start 
                  #:goal (if (procedure? goal) 
-                            (λ (x) (goal (term->sexp x)))
-                            (λ (x) (equal? (ensure-term goal) x)))
+                            (λ (x) (goal x))
+                            (λ (x) (equal? goal x)))
                  #:steps steps)])
     (inc-tests)
     (when (search-failure? result)
@@ -2725,7 +2719,7 @@
 ;; access to `match-pattern` to work.
 (define (alpha-equivalent? lang lhs rhs)
   (α-equal? (compiled-lang-binding-table lang) match-pattern 
-            (ensure-term lhs) (ensure-term rhs)))
+            lhs rhs))
 
 ;; special empty language that signals to `build-metafunction` that this metafunction 
 ;; is language-agnostic
@@ -2869,8 +2863,8 @@
          apply-reduction-relation/tagged
          apply-reduction-relation*
          current-cache-all?
-         variable-not-in
-         variables-not-in)
+         variable-not-in/term
+         variables-not-in/term)
 
 (provide relation-coverage
          covered-cases

@@ -2025,7 +2025,7 @@ See match-a-pattern.rkt for more details
 ;; plug : term term -> term
 ;; s-expressions as input get converted to terms 
 (define (plug t hole-stuff)
-  (plugger (ensure-term t) (ensure-term hole-stuff) 
+  (plugger t hole-stuff 
            term-pair? term-car term-cdr term-cons))
 
 ;; sexp-plug : sexp sexp -> sexp

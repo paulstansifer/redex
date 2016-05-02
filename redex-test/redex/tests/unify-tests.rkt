@@ -875,7 +875,6 @@
      number
      x)
   (x variable-not-otherwise-mentioned))
-
 (u-fails λn 1 2 (hash))
 (u-test λn (λ x 3) e_1 (hash) 
         (p*e `(name e_1 ,(bound)) 
@@ -906,7 +905,7 @@
   (n number))
 
 (check-equal?
- (pat->term n-lang 'hi (env (hash (lvar 'it) '(cstr (n) hi)) '()))
+ (pat->term n-lang (term hi) (env (hash (lvar 'it) '(cstr (n) hi)) '()))
  (unif-fail))
 
 

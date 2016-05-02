@@ -1,5 +1,6 @@
 #lang racket/base
-(require racket/contract
+(require "term-repr.rkt"
+         racket/contract
          racket/set)
 
 (define (variable-not-in sexp var)
@@ -59,6 +60,16 @@
                  [c2 (in-string str2)])
          (equal? c1 c2))))
 
+(define (variable-not-in/term t var)
+  (sexp->term (variable-not-in (term->sexp t) 
+                               (if (term? var) (term->sexp var) var))))
+
+(define (variables-not-in/term t var)
+  (map sexp->term (variables-not-in (term->sexp t) 
+                                    (if (term? var) (term->sexp var) var))))
+
 (provide/contract
  [variable-not-in (any/c symbol? . -> . symbol?)]
- [variables-not-in (any/c (listof symbol?) . -> . (listof symbol?))])
+ [variables-not-in (any/c (listof symbol?) . -> . (listof symbol?))]
+ [variable-not-in/term (term? (or/c symbol? term?) . -> . term?)]
+ [variables-not-in/term (term? (or/c (listof symbol?) term?) . -> . (listof term?))])

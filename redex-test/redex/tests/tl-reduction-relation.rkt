@@ -28,7 +28,7 @@
        (reduction-relation 
         grammar
         (--> (in-hole E_1 (number_1 number_2))
-             (in-hole E_1 ,(* (term number_1) (term number_2)))))
+             (in-hole E_1 ,(* (term->sexp (term number_1)) (term->sexp (term number_2))))))
        '((2 3) (4 5)))
       (list '(6 (4 5))))
 
@@ -36,7 +36,7 @@
        (reduction-relation 
         grammar
         (~~> (number_1 number_2)
-             ,(* (term number_1) (term number_2)))
+             ,(* (term->sexp (term number_1)) (term->sexp (term number_2))))
         with
         [(--> (in-hole E_1 a) (in-hole E_1 b)) (~~> a b)])
        '((2 3) (4 5)))
@@ -46,7 +46,7 @@
        (reduction-relation 
         grammar
         (==> (number_1 number_2)
-             ,(* (term number_1) (term number_2)))
+             ,(* (term->sexp (term number_1)) (term->sexp (term number_2))))
         with
         [(--> (M_1 a) (M_1 b)) (~~> a b)]
         [(~~> (M_1 a) (M_1 b)) (==> a b)])
@@ -57,9 +57,9 @@
        (reduction-relation 
         grammar
         (~~> (number_1 number_2)
-             ,(* (term number_1) (term number_2)))
+             ,(* (term->sexp (term number_1)) (term->sexp (term number_2))))
         (==> (number_1 number_2)
-             ,(* (term number_1) (term number_2)))
+             ,(* (term->sexp (term number_1)) (term->sexp (term number_2))))
         with
         [(--> (M_1 a) (M_1 b)) (~~> a b)]
         [(--> (a M_1) (b M_1)) (==> a b)])
@@ -71,9 +71,9 @@
        (reduction-relation 
         grammar
         (--> (M_1 (number_1 number_2))
-             (M_1 ,(* (term number_1) (term number_2))))
+             (M_1 ,(* (term->sexp (term number_1)) (term->sexp (term number_2)))))
         (==> (number_1 number_2)
-             ,(* (term number_1) (term number_2)))
+             ,(* (term->sexp (term number_1)) (term->sexp (term number_2))))
         with
         [(--> (a M_1) (b M_1)) (==> a b)])
        '((2 3) (4 5)))
@@ -148,7 +148,7 @@
                             (in-hole ((hide-hole hole) hole)
                                      hole))
                       number)
-             (in-hole E ,(add1 (term number)))))
+             (in-hole E ,(add1 (term->sexp (term number))))))
        (term (hole 2)))
       (list (term (hole 3))))
 
@@ -156,7 +156,7 @@
        (reduction-relation 
         grammar
         (--> (number_1 number_2) 
-             ,(* (term number_1) (term number_2))
+             ,(* (term->sexp (term number_1)) (term->sexp (term number_2)))
              mul))
        '(4 5))
       (list (list "mul" 20)))
@@ -165,7 +165,7 @@
        (reduction-relation 
         grammar
         (--> (number_1 number_2) 
-             ,(* (term number_1) (term number_2))
+             ,(* (term->sexp (term number_1)) (term->sexp (term number_2)))
              "mul"))
        '(4 5))
       (list (list "mul" 20)))
@@ -174,7 +174,7 @@
        (reduction-relation 
         grammar
         (--> (number_1 number_2) 
-             ,(* (term number_1) (term number_2))))
+             ,(* (term->sexp (term number_1)) (term->sexp (term number_2)))))
        '(4 5))
       (list (list #f 20)))
 
@@ -182,7 +182,7 @@
        (reduction-relation 
         grammar
         (==> (number_1 number_2) 
-             ,(* (term number_1) (term number_2))
+             ,(* (term->sexp (term number_1)) (term->sexp (term number_2)))
              mult)
         with
         [(--> (M_1 a) (M_1 b)) (==> a b)])
@@ -199,8 +199,8 @@
              pick-two
              (computed-name
               (format "(~s, ~s)"
-                      (length (term (number_0 ...)))
-                      (length (term (number_0* ...)))))))
+                      (length (term->sexp (term (number_0 ...))))
+                      (length (term->sexp (term (number_0* ...))))))))
        '(9 7))
       '(("(1, 1)" (7 7)) ("(1, 0)" (7 9)) ("(0, 1)" (9 7)) ("(0, 0)" (9 9))))
 
@@ -241,10 +241,10 @@
         empty-language
         (--> (number_1 number_2) 
              number_2
-             (side-condition (< (term number_1) (term number_2))))
+             (side-condition (< (term->sexp (term number_1)) (term->sexp (term number_2)))))
         (--> (number_1 number_2) 
              number_1
-             (side-condition (< (term number_2) (term number_1)))))
+             (side-condition (< (term->sexp (term number_2)) (term->sexp (term number_1))))))
        '(1 2))
       (list 2))
 
@@ -315,12 +315,12 @@
 (let* ([red1
         (reduction-relation 
          empty-language
-         #:domain (side-condition number_1 (even? (term number_1)))
+         #:domain (side-condition number_1 (even? (term->sexp (term number_1))))
          (--> number number))]
        [red2
         (reduction-relation 
          empty-language
-         #:domain (side-condition number_1 (odd? (term number_1)))
+         #:domain (side-condition number_1 (odd? (term->sexp (term number_1))))
          (--> number number))]
        [red-c
         (union-reduction-relations red1 red2)])
@@ -432,10 +432,10 @@
           (--> (number_1 number_2 ... (number_s ...) ...)
                yes
                (where number_1 1)
-               (where (number_3 ...) ,(cdr (term (number_2 ...))))
+               (where (number_3 ...) ,(cdr (term->sexp (term (number_2 ...)))))
                (where (number_3 ...) (3 4 5))
                (where (number_1 (number_s ...) ...)
-                      ,(if (null? (term ((number_s ...) ...)))
+                      ,(if (null? (term->sexp (term ((number_s ...) ...))))
                            (term (number_1))
                            (term (number_1 () (6) (7 8) (9 10 11)))))))])
   (test (apply-reduction-relation R (term (1 2 3 4 5))) '(yes))
@@ -449,12 +449,12 @@
          (reduction-relation 
           grammar
           (--> (number_1 number_2) 
-               ,(* (term number_1) (term number_2))
+               ,(* (term->sexp (term number_1)) (term->sexp (term number_2)))
                mult))
          (reduction-relation 
           grammar
           (--> (number_1 number_2) 
-               ,(* (term number_1) (term number_2))
+               ,(* (term->sexp (term number_1)) (term->sexp (term number_2)))
                mult)))
         'failed)
       'passed)
@@ -465,24 +465,24 @@
           (reduction-relation 
            grammar
            (--> (number_1 number_2) 
-                ,(* (term number_1) (term number_2))
+                ,(* (term->sexp (term number_1)) (term->sexp (term number_2)))
                 mult))
           (reduction-relation 
            grammar
            (--> (number_1 number_2) 
-                ,(* (term number_1) (term number_2))
+                ,(* (term->sexp (term number_1)) (term->sexp (term number_2)))
                 mult3)))
          
          (union-reduction-relations
           (reduction-relation 
            grammar
            (--> (number_1 number_2) 
-                ,(* (term number_1) (term number_2))
+                ,(* (term->sexp (term number_1)) (term->sexp (term number_2)))
                 mult))
           (reduction-relation 
            grammar
            (--> (number_1 number_2) 
-                ,(* (term number_1) (term number_2))
+                ,(* (term->sexp (term number_1)) (term->sexp (term number_2)))
                 mult2))))
         'passed)
       'passed)
@@ -494,7 +494,7 @@
          (reduction-relation 
           grammar
           (--> (number_1 number_2) 
-               ,(* (term number_1) (term number_2))
+               ,(* (term->sexp (term number_1)) (term->sexp (term number_2)))
                mult))
          grammar
          M)
@@ -508,7 +508,7 @@
         (reduction-relation 
          grammar
          (--> (number_1 number_2) 
-              ,(* (term number_1) (term number_2))
+              ,(* (term->sexp (term number_1)) (term->sexp (term number_2)))
               mult))
         grammar
         M)
@@ -603,7 +603,7 @@
         empty-language
         (--> any_1 3
              (side-condition (redex-match empty-language (any_1 any_2) (term any_1)))))
-       '(a b))
+       (term (a b)))
       '(3))
 
 (test (apply-reduction-relation
@@ -612,14 +612,14 @@
         (--> variable_1
              (x variable_1)
              (fresh (x variable_1))))
-       'q)
+       (term q))
       (list '(q1 q)))
 
 (test (apply-reduction-relation
        (extend-reduction-relation (reduction-relation empty-language (--> 1 2))
                                   empty-language
                                   (--> 1 3))
-       1)
+       (term 1))
       '(3 2))
 
 (test (apply-reduction-relation
@@ -627,7 +627,7 @@
         (reduction-relation empty-language (--> 1 2 (computed-name 1)))
         empty-language
         (--> 1 3 (computed-name 1)))
-       1)
+       (term 1))
       '(3 2))
 
 (test (apply-reduction-relation
@@ -635,7 +635,7 @@
         (reduction-relation empty-language (--> 1 2 (computed-name 1) x))
         empty-language
         (--> 1 3 (computed-name 1) x))
-       1)
+       (term 1))
       '(3))
 
 (let ()

@@ -26,27 +26,27 @@
 (test (let ([m (redex-match 
                 empty-language
                 (side-condition (any_1 ...) #t)
-                '())])
+                (term ()))])
         (and m
              (= 1 (length m))
              (match-bindings (car m))))
       (list (make-bind 'any_1 (sexp->term '()))))
 
-(test (pair? (redex-match grammar M '(1 1))) #t)
-(test (pair? (redex-match grammar M '(1 1 1))) #f)
+(test (pair? (redex-match grammar M (term (1 1)))) #t)
+(test (pair? (redex-match grammar M (term (1 1 1)))) #f)
 (test (pair? (redex-match grammar
                           (side-condition (M_1 M_2) (equal? (term M_1) (term M_2)))
-                          '(1 1)))
+                          (term (1 1))))
       #t)
 (test (pair? (redex-match grammar
                           (side-condition (M_1 M_2) (equal? (term M_1) (term M_2))) 
-                          '(1 2)))
+                          (term (1 2))))
       #f)
 
-(test (pair? ((redex-match grammar M) '(1 1)))
+(test (pair? ((redex-match grammar M) (term (1 1))))
       #t)
 
-(test (pair? (redex-match grammar (name not-an-nt_subscript 1) 1)) #t)
+(test (pair? (redex-match grammar (name not-an-nt_subscript 1) (term 1))) #t)
 
 ;; next 3: test naming of subscript-less non-terminals
 (test (pair? (redex-match grammar (M M) (term (1 1)))) #t)
@@ -64,13 +64,13 @@
   (x (variable-except + *))
   (r 2))
 
-(test (pair? (redex-match extended-grammar e '(+ 1 1))) #t)
-(test (pair? (redex-match extended-grammar e '(* 2 2))) #t)
-(test (pair? (redex-match extended-grammar r '2)) #t)
-(test (pair? (redex-match extended-grammar q '1)) #t)
-(test (pair? (redex-match extended-grammar x '*)) #f)
-(test (pair? (redex-match extended-grammar x '+)) #f)
-(test (pair? (redex-match extended-grammar e '....)) #f)
+(test (pair? (redex-match extended-grammar e (term (+ 1 1)))) #t)
+(test (pair? (redex-match extended-grammar e (term (* 2 2)))) #t)
+(test (pair? (redex-match extended-grammar r (term 2))) #t)
+(test (pair? (redex-match extended-grammar q (term 1))) #t)
+(test (pair? (redex-match extended-grammar x (term *))) #f)
+(test (pair? (redex-match extended-grammar x (term +))) #f)
+(test (pair? (redex-match extended-grammar e (term ....))) #f)
 
 ;; make sure that `language' with a four period ellipses signals an error
 (test (regexp-match #rx"[.][.][.][.]" (with-handlers ([exn? exn-message]) 
@@ -112,17 +112,17 @@
     ((x y) 1 2 3))
   (define-extended-language lang2 lang
     (x .... 4))
-  (test (pair? (redex-match lang2 x 4)) #t)
-  (test (pair? (redex-match lang2 y 4)) #t)
-  (test (pair? (redex-match lang2 x 1)) #t)
-  (test (pair? (redex-match lang2 y 2)) #t))
+  (test (pair? (redex-match lang2 x (term 4))) #t)
+  (test (pair? (redex-match lang2 y (term 4))) #t)
+  (test (pair? (redex-match lang2 x (term 1))) #t)
+  (test (pair? (redex-match lang2 y (term 2))) #t))
 
 ;; test that the variable "e" is not bound in the right-hand side of a side-condition
 ;; this one signaled an error at some point
 (let ()
   (define-language bad
     (e 2 (side-condition (e) #t)))
-  (test (pair? (redex-match bad e '(2)))
+  (test (pair? (redex-match bad e (term (2))))
         #t))
 
 ;; test that the variable "e" is not bound in the right-hand side of a side-condition
@@ -130,7 +130,7 @@
 (let ([x #f])
   (define-language bad
     (e 2 (side-condition (e) (set! x (term e)))))
-  (redex-match bad e '(2))
+  (redex-match bad e (term (2)))
   (test x 'e))
 
 ;; test multiple variable non-terminals being extended
@@ -139,10 +139,10 @@
     ((x y) 1 2 3))
   (define-extended-language lang2 lang
     (x .... 4))
-  (test (pair? (redex-match lang2 x 4)) #t)
-  (test (pair? (redex-match lang2 y 4)) #t)
-  (test (pair? (redex-match lang2 x 1)) #t)
-  (test (pair? (redex-match lang2 y 2)) #t))
+  (test (pair? (redex-match lang2 x (term 4))) #t)
+  (test (pair? (redex-match lang2 y (term 4))) #t)
+  (test (pair? (redex-match lang2 x (term 1))) #t)
+  (test (pair? (redex-match lang2 y (term 2))) #t))
 
 ;; test multiple variable non-terminals in an extended language
 (let ()
@@ -150,8 +150,8 @@
     ((x y) 1 2 3))
   (define-extended-language lang2 lang
     ((z w) 5 6 7))
-  (test (pair? (redex-match lang2 z 5)) #t)
-  (test (pair? (redex-match lang2 w 6)) #t))
+  (test (pair? (redex-match lang2 z (term 5))) #t)
+  (test (pair? (redex-match lang2 w (term 6))) #t))
 
 ;; test cases that ensure that extending any one of a
 ;; multiply defined non-terminal gets extended properly
@@ -242,14 +242,14 @@
           (any_1 number_1 natural_1 integer_1
                  real_1 string_1 variable_1
                  variable-not-otherwise-mentioned_1)
-          '(1 2 3 4 5 "s" s t))])
+          (term (1 2 3 4 5 "s" s t)))])
   (test (if m
             (map bind-exp
                  (sort (match-bindings (car m))
                        string<=?
                        #:key (compose symbol->string bind-name)))
             '())
-        '(1 4 3 2 5 "s" t s)))
+        (term (1 4 3 2 5 "s" t s))))
 
 (let ()
   (define-language L
@@ -273,7 +273,7 @@
               (for/list ([match actual])
                 (for/list ([bind (match-bindings match)])
                   (list (bind-name bind) (bind-exp bind)))))
-             (apply set (list (list (list 'var (sexp->term (term val))) ...) ...))))]))
+             (apply set (list (list (list 'var (term val)) ...) ...))))]))
 
 ;; cross
 (let ()
@@ -327,11 +327,11 @@
   (define-language lang
     (x (side-condition any match?)))
   
-  (test (pair? (redex-match lang x 1)) #t)
+  (test (pair? (redex-match lang x (term 1))) #t)
   (set! match? #f)
-  (test (pair? (redex-match lang x 1)) #t)
+  (test (pair? (redex-match lang x (term 1))) #t)
   (parameterize ([caching-enabled? #f])
-    (test (pair? (redex-match lang x 1)) #f)))
+    (test (pair? (redex-match lang x (term 1))) #f)))
 
 
 (let ()
@@ -340,10 +340,10 @@
     (x (side-condition any (begin (set! sc-eval-count (+ sc-eval-count 1))
                                   #t))))
   
-  (redex-match lang x 1)
-  (redex-match lang x 1)
+  (redex-match lang x (term 1))
+  (redex-match lang x (term 1))
   (parameterize ([caching-enabled? #f])
-    (redex-match lang x 1))
+    (redex-match lang x (term 1)))
   (test sc-eval-count 2))
 
 (let ()
@@ -370,17 +370,17 @@
   (define-language L
     (M N ::= (M N) (λ (x) M) x)
     (x ::= variable-not-otherwise-mentioned))
-  (test (and (redex-match L M '(λ (x) (x x))) #t) #t)
-  (test (and (redex-match L N '(λ (x) (x x))) #t) #t)
+  (test (and (redex-match L M (term (λ (x) (x x)))) #t) #t)
+  (test (and (redex-match L N (term (λ (x) (x x)))) #t) #t)
   (define-extended-language L+ L
     (M ::= .... n)
     (n m ::= number))
-  (test (and (redex-match L+ M '(λ (x) 7)) #t) #t)
-  (test (and (redex-match L+ m 7) #t) #t)
+  (test (and (redex-match L+ M (term (λ (x) 7))) #t) #t)
+  (test (and (redex-match L+ m (term 7)) #t) #t)
   (let ([::= void])
     (define-language L
       (::= () (number ::=)))
-    (test (and (redex-match L ::= '(1 ())) #t) #t)))
+    (test (and (redex-match L ::= (term (1 ()))) #t) #t)))
 
 (let ()
   (define-language L1
@@ -394,12 +394,12 @@
   
   (define-union-language L L1 (- L2))
   
-  (test (and (redex-match L x 3) #t) #t)
-  (test (and (redex-match L y 2) #t) #t)
-  (test (redex-match L x 100) #f)
-  (test (and (redex-match L -x 100) #t) #t)
-  (test (and (redex-match L -b 100) #t) #t)
-  (test (redex-match L -b 3) #f))
+  (test (and (redex-match L x (term 3)) #t) #t)
+  (test (and (redex-match L y (term 2)) #t) #t)
+  (test (redex-match L x (term 100)) #f)
+  (test (and (redex-match L -x (term 100)) #t) #t)
+  (test (and (redex-match L -b (term 100)) #t) #t)
+  (test (redex-match L -b (term 3)) #f))
 
 ;; The following two tests make sure that `define-union-language`
 ;; works with extended languages
@@ -457,8 +457,8 @@
   (test (redex-match? LMergeUntagged e (term (+ 1 1))) #t)
   (test (redex-match? LMergeUntagged e (term (- 1 1))) #t)
   
-  (test (redex-match? LMergeTagged f.e 1) #t)
-  (test (redex-match? LMergeTagged d.e 1) #t)
+  (test (redex-match? LMergeTagged f.e (term 1)) #t)
+  (test (redex-match? LMergeTagged d.e (term 1)) #t)
   
   (test (redex-match? LMergeTagged f.e (term (+ 1 1))) #t)
   (test (redex-match? LMergeTagged f.e (term (- 1 1))) #t)
@@ -472,12 +472,12 @@
   (define-language L1 (e f ::= 1))
   (define-language L2 (e g ::= 2))
   (define-union-language Lc L1 L2)
-  (test (redex-match? Lc e 1) #t)
-  (test (redex-match? Lc e 2) #t)
-  (test (redex-match? Lc f 1) #t)
-  (test (redex-match? Lc f 2) #t)
-  (test (redex-match? Lc g 1) #t)
-  (test (redex-match? Lc g 2) #t))
+  (test (redex-match? Lc e (term 1)) #t)
+  (test (redex-match? Lc e (term 2)) #t)
+  (test (redex-match? Lc f (term 1)) #t)
+  (test (redex-match? Lc f (term 2)) #t)
+  (test (redex-match? Lc g (term 1)) #t)
+  (test (redex-match? Lc g (term 2)) #t))
 
 (let ()
   (define-language UT
@@ -502,8 +502,8 @@
   (test (redex-match B wt.e (term (foo x x))) #f))
 
 (let ()
-  (test (redex-match empty-language number 'a) #f)
-  (test (redex-match empty-language (in-hole hole number) 'a) #f))
+  (test (redex-match empty-language number (term a)) #f)
+  (test (redex-match empty-language (in-hole hole number) (term a)) #f))
 
 (let ()
   (define-language L
@@ -513,12 +513,12 @@
   (test (term 1 #:lang L) 1)
   (test (term ((1 2) (3 4)) #:lang L) '((1 2) (3 4)))
   (test (term (1 2 3 4) #:lang L) '(1 2 3 4))
-  (test (redex-let L ([a_1 5])
+  (test (redex-let L ([a_1 (term 5)])
                    (term (a_1 6) #:lang L))
-        '(5 6))
-  (test (redex-let L ([number_1 5])
+        (term (5 6)))
+  (test (redex-let L ([number_1 (term 5)])
                    (term (number_1 6) #:lang L))
-        '(5 6)))
+        (term (5 6))))
 
 (let ()
   ;; test to make sure that reasonable short-circuiting is happening
@@ -547,7 +547,7 @@
          (for ([count (in-range 20)])
            (redex-match abort-core-lang
                         e
-                        (add-minuses 11 count)))))
+                        (sexp->term (add-minuses 11 count))))))
      '()))
   (test (< cpu 1000) #t))
 
@@ -555,17 +555,17 @@
   ;; _ as a non-binding match
   (define-language L)
   
-  (test (pair? (redex-match L _ '(1 2 3)))
+  (test (pair? (redex-match L _ (term (1 2 3))))
         #t)
-  (test (redex-match L (_ _) '(1 2 3))
+  (test (redex-match L (_ _) (term (1 2 3)))
         #f)
-  (test (pair? (redex-match L (_ _ ...)'(1 2)))
+  (test (pair? (redex-match L (_ _ ...) (term (1 2))))
         #t)
-  (test (redex-match L (_ _ ...)'())
+  (test (redex-match L (_ _ ...) (term ()))
         #f)
-  (test (pair? (redex-match L (_ (_ _ ...) ...) '((1 2) (3 4) (5 6))))
+  (test (pair? (redex-match L (_ (_ _ ...) ...) (term ((1 2) (3 4) (5 6)))))
         '#t)
-  (test (redex-match L (_ (_ _ ...) ...) '((1 2) (3 4) () (5 6)))
+  (test (redex-match L (_ (_ _ ...) ...) (term ((1 2) (3 4) () (5 6))))
         #f))
 
 
@@ -598,33 +598,33 @@
     (n number)
     (x variable))
   
-  (test (redex-let L ([(n_1 n_2) '(1 2)])
+  (test (redex-let L ([(n_1 n_2) (term (1 2))])
                    (term (n_2 n_1)))
         (term (2 1)))
   (test (redex-let L ([(x_i ([x_0 n_0] ... [x_i n_i] [x_i+1 n_i+1] ...))
-                       '(b ([a 1] [b 2] [c 3]))])
+                       (term (b ([a 1] [b 2] [c 3])))])
                    (term n_i))
         2)
   (test (with-handlers ([exn:fail:redex? exn-message])
-          (redex-let L ([(n) 1]) 'no-exn))
+          (redex-let L ([(n) (term 1)]) 'no-exn))
         (format "redex-let: term ~s does not match pattern (n)" (sexp->term 1)))
   (test (with-handlers ([exn:fail:redex? exn-message])
-          (redex-let L ([(n_1 ... n_i n_i+1 ...) '(1 2 3)]) 'no-exn))
+          (redex-let L ([(n_1 ... n_i n_i+1 ...) (term (1 2 3))]) 'no-exn))
         (format "redex-let: pattern (n_1 ... n_i n_i+1 ...) matched term ~s multiple ways"
                 (sexp->term '(1 2 3))))
-  (test (redex-let L ([n_1 1])
-                   (redex-let L ([n_1 2] [n_2 (term n_1)])
+  (test (redex-let L ([n_1 (term 1)])
+                   (redex-let L ([n_1 (term 2)] [n_2 (term n_1)])
                               (term (n_1 n_2))))
         (term (2 1)))
-  (test (redex-let L ([n_1 1])
-                   (redex-let* L ([n_1 2] [n_2 (term n_1)])
+  (test (redex-let L ([n_1 (term 1)])
+                   (redex-let* L ([n_1 (term 2)] [n_2 (term n_1)])
                                (term (n_1 n_2))))
         (term (2 2)))
   
-  (test (redex-let L ([(n_1 n_1) '(1 1)]) (term n_1))
+  (test (redex-let L ([(n_1 n_1) (term (1 1))]) (term n_1))
         1)
   (test
-   (redex-let* L ([(n_1) '(1)] [n_1 1]) (term n_1))
+   (redex-let* L ([(n_1) (term (1))] [n_1 (term 1)]) (term n_1))
    1))
 
 (let ()
@@ -685,26 +685,26 @@
                           [(variable_x variable_y)
                            (cons (term variable_x)
                                  (term variable_y))])
-       (sexp->term '(x y)))
-      (sexp->term '(x . y)))
+       (term (x y)))
+      (term (x . y)))
 
 (test ((term-match/single empty-language
                           [(side-condition (variable_x variable_y)
-                                           (eq? (term variable_x) 'x))
+                                           (equal? (term variable_x) (term x)))
                            (cons (term variable_x)
                                  (term variable_y))])
-       (sexp->term '(x y)))
+       (term (x y)))
       (sexp->term '(x . y)))
 
 (test ((term-match/single empty-language [() 'a] [() 'b])
-       (sexp->term '()))
-      (sexp->term 'a))
+       (term ()))
+      (term a))
 
 (test (with-handlers ((exn:fail:redex? (λ (x) 'right-exn))
                       ((λ (x) #t) (λ (x) 'wrong-exn)))
         ((term-match/single empty-language
                             [(number_1 ... number_2 ...) 1])
-         (sexp->term '(1 2 3)))
+         (term (1 2 3)))
         'no-exn)
       'right-exn)
 
@@ -712,14 +712,14 @@
                       ((λ (x) #t) (λ (x) 'wrong-exn)))
         ((term-match/single empty-language
                             [(number_1 ... number_2 ...) 1])
-         (sexp->term 'x))
+         (term x))
         'no-exn)
       'right-exn)
 
 (test ((term-match empty-language
                    [(number_1 ... number_2 ...) 1])
-       (sexp->term 'x))
-      (sexp->term '()))
+       (term x))
+      (term ()))
 
 (define-language x-is-1-language
   [x 1])
@@ -727,14 +727,14 @@
 (test ((term-match/single x-is-1-language
                           [(x x)
                            1])
-       (sexp->term '(1 1)))
+       (term (1 1)))
       (sexp->term 1))
 
 (test (call-with-values
        (λ () 
          ((term-match/single empty-language
                              [() (values 1 2)])
-          (sexp->term '())))
+          (term ())))
        list)
       '(1 2))
 
@@ -743,7 +743,7 @@
                            [(any_a ... number_1 any_b ...)
                             (begin (set! x (+ x 1))
                                    (term number_1))])
-               (sexp->term '(1 2 3)))
+               (term (1 2 3)))
               x))
       (sexp->term '((1 2 3) . 3)))
 
@@ -752,8 +752,8 @@
                     (term number_1)]
                    [number_1
                     (term number_1)])
-       (sexp->term '1))
-      (sexp->term '(1 1)))
+       (term 1))
+      (term (1 1)))
 
 (define-syntax (get-nt-hole-map stx)
   (syntax-case stx ()

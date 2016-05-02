@@ -22,20 +22,20 @@
 
 (define-metafunction grammar
   [(f (side-condition (number_1 number_2)
-                      (< (term number_1)
-                         (term number_2))))
+                      (< (term->sexp (term number_1))
+                         (term->sexp (term number_2)))))
    x]
   [(f (number 1)) y]
-  [(f (number_1 2)) ,(+ (term number_1) 2)]
+  [(f (number_1 2)) ,(+ (term->sexp (term number_1)) 2)]
   [(f (4 4)) q]
   [(f (4 4)) r])
 
 (define-metafunction grammar
   [(g X) x])
 
-(test (term (f (1 17))) 'x)
-(test (term (f (11 1))) 'y)
-(test (term (f (11 2))) 13)
+(test (term (f (1 17))) (term x))
+(test (term (f (11 1))) (term y))
+(test (term (f (11 2))) (term 13))
 
 
 ;; match two clauess => take first one
@@ -62,13 +62,13 @@
 (let ()
   (define-metafunction empty-language
     [(f)
-     ,(and (redex-match empty-language number 7) #t)
-     (side-condition (redex-match empty-language number 7))])
+     ,(and (redex-match empty-language number (term 7)) #t)
+     (side-condition (redex-match empty-language number (term 7)))])
   (test (term (f)) #t))
 
 (define-metafunction grammar
   [(h (M_1 M_2)) ((h M_2) (h M_1))]
-  [(h number_1) ,(+ (term number_1) 1)])
+  [(h number_1) ,(+ (term->sexp (term number_1)) 1)])
 
 (test (term (h ((1 2) 3)))
       (term (4 (3 2))))
@@ -191,7 +191,7 @@
 
 (let ()
   (define-metafunction empty-language
-    [(f (x)) (x ,@(term-let ([var-should-be-lookedup 'y]) (term (f var-should-be-lookedup))) x)]
+    [(f (x)) (x ,@(term-let ([var-should-be-lookedup (term y)]) (term (f var-should-be-lookedup))) x)]
     [(f y) (y)]
     [(f var-should-be-lookedup) (var-should-be-lookedup)]) ;; taking this case is bad!
   
@@ -202,7 +202,7 @@
     [(f (any_1 any_2))
      case1
      (side-condition (not (equal? (term any_1) (term any_2))))
-     (side-condition (not (equal? (term any_1) 'x)))]
+     (side-condition (not (equal? (term any_1) (term x))))]
     [(f (any_1 any_2))
      case2
      (side-condition (not (equal? (term any_1) (term any_2))))]
@@ -324,7 +324,7 @@
   (define-metafunction empty-language
     [(f (number_1 number_2))
      number_3
-     (where number_3 ,(+ (term number_1) (term number_2)))])
+     (where number_3 ,(+ (term->sexp (term number_1)) (term->sexp (term number_2))))])
   (test (term (f (11 17))) 28))
 
 (let ()
@@ -339,10 +339,10 @@
   (define-metafunction empty-language
     [(f number_1)
      number_1
-     (where number_2 ,(add1 (term number_1)))
-     (where number_3 ,(add1 (term number_2)))
-     (side-condition (and (number? (term number_3))
-                          (= (term number_3) 4)))]
+     (where number_2 ,(add1 (term->sexp (term number_1))))
+     (where number_3 ,(add1 (term->sexp (term number_2))))
+     (side-condition (and (number? (term->sexp (term number_3)))
+                          (= (term->sexp (term number_3)) 4)))]
     [(f any) 0])
   (test (term (f 2)) 2))
 
@@ -445,7 +445,7 @@
 (let ()
   (define-metafunction empty-language
     [(f 0) 0]
-    [(f number) (f ,(- (term number) 1))])
+    [(f number) (f ,(- (term->sexp (term number)) 1))])
   
   (let ([sp (open-output-string)])
     (parameterize ([current-output-port sp])
@@ -541,10 +541,10 @@
     [(f number_1 number_2 ... (number_s ...) ...)
      yes
      (where number_1 1)
-     (where (number_3 ...) ,(cdr (term (number_2 ...))))
+     (where (number_3 ...) ,(cdr (term->sexp (term (number_2 ...)))))
      (where (number_3 ...) (3 4 5))
      (where (number_1 (number_s ...) ...)
-            ,(if (null? (term ((number_s ...) ...)))
+            ,(if (null? (term->sexp (term ((number_s ...) ...))))
                  (term (number_1))
                  (term (number_1 () (6) (7 8) (9 10 11)))))]
     [(f any ...)
@@ -790,7 +790,7 @@
     [(- (x ...) ()) (x ...)]
     [(- (x_1 ... x_2 x_3 ...) (x_2 x_4 ...))
      (- (x_1 ... x_3 ...) (x_2 x_4 ...))
-     (side-condition (not (memq (term x_2) (term (x_3 ...)))))]
+     (side-condition (not (memq (term->sexp (term x_2)) (term->sexp (term (x_3 ...))))))]
     [(- (x_1 ...) (x_2 x_3 ...))
      (- (x_1 ...) (x_3 ...))])
   

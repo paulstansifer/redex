@@ -84,8 +84,8 @@
          (struct-out counterexample)
          depth-dependent-order?)
 
-(provide variable-not-in
-         variables-not-in)
+(provide (rename-out [variable-not-in/term variable-not-in])
+         (rename-out [variables-not-in/term variables-not-in]))
 
 (provide/contract
  [current-traced-metafunctions (parameter/c (or/c 'all (listof symbol?)))]

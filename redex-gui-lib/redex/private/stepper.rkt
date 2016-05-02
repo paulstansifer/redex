@@ -55,7 +55,7 @@ todo:
   (define back-label (pick-label "↩" "<-"))
   
   (define (stepper red term [pp default-pretty-printer])
-    (stepper/seed red (list (ensure-term term)) pp))
+    (stepper/seed red (list term) pp))
   
   (define (stepper/seed red seed [pp default-pretty-printer])
     (define term (car seed))
